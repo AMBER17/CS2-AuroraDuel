@@ -1,180 +1,205 @@
 # AuroraDuel
 
-Plugin CounterStrikeSharp pour Counter-Strike 2 qui permet de créer et gérer des duels personnalisés avec des spawns configurables.
+CounterStrikeSharp plugin for Counter-Strike 2 that allows you to create and manage custom duels with configurable spawns.
 
 ## 📋 Description
 
-AuroraDuel est un plugin qui transforme votre serveur CS2 en une arène de duels personnalisés. Le plugin permet de :
+AuroraDuel is a plugin that transforms your CS2 server into a custom duel arena. The plugin allows you to:
 
-- Configurer des duels avec des spawns T et CT flexibles (1v1, 2v4, etc.)
-- Gérer automatiquement les rounds infinis (60 minutes)
-- Téléporter automatiquement les joueurs aux positions configurées
-- Équiper automatiquement les joueurs avec des armes personnalisables
-- Afficher des messages personnalisés au début et à la fin de chaque duel
+- Configure duels with flexible T and CT spawns (1v1, 2v4, etc.)
+- Automatically manage infinite rounds (60 minutes)
+- Automatically teleport players to configured positions
+- Automatically equip players with customizable weapons
+- Display customizable messages at the start and end of each duel
 
-## 🚀 Prérequis
+## 🚀 Prerequisites
 
 - Counter-Strike 2 Server
-- [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) (version 1.0.347 ou supérieure)
+- [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) (version 1.0.347 or higher)
 - .NET 8.0 SDK
 
 ## 📦 Installation
 
-1. Clonez ce repository ou téléchargez les fichiers sources
-2. Compilez le projet avec Visual Studio ou la ligne de commande :
+1. Clone this repository or download the source files
+2. Build the project with Visual Studio or command line:
    ```bash
    dotnet build
    ```
-3. Copiez le fichier `AuroraDuel.dll` généré dans le dossier `bin/Debug/net8.0/` vers :
+3. Copy the generated `AuroraDuel.dll` file from the `bin/Debug/net8.0/` folder to:
    ```
    csgo/addons/counterstrikesharp/plugins/
    ```
-4. Copiez le dossier `configs/` à la racine de votre serveur CS2
-5. Redémarrez votre serveur ou rechargez les plugins
+4. Copy the `configs/` folder to the root of your CS2 server
+5. Restart your server or reload plugins
 
 ## ⚙️ Configuration
 
-### Fichier de configuration serveur (`configs/duel_settings.cfg`)
+### Server Configuration File (`configs/duel_settings.cfg`)
 
-Ce fichier contient les paramètres du serveur pour les duels. Il est automatiquement exécuté au démarrage du plugin.
+This file contains server settings for duels. It is automatically executed when the plugin starts.
 
-Les paramètres principaux incluent :
-- Round de 60 minutes (infini)
-- Désactivation du warmup
-- Désactivation des conditions de fin de round automatiques
-- Configuration des drops d'armes
+Main settings include:
+- 60-minute rounds (infinite)
+- Warmup disabled
+- Automatic round end conditions disabled
+- Weapon drop configuration
 
-### Fichier de paramètres du plugin (`configs/plugins/AuroraDuel/settings.json`)
+### Plugin Settings File (`configs/plugins/AuroraDuel/settings.json`)
 
-Ce fichier est créé automatiquement au premier lancement. Il contient :
+This file is automatically created on first launch. It contains only gameplay configuration:
 
-- **DelayBeforeNextDuel** : Délai avant le prochain duel (défaut: 1.0s)
-- **DelayAfterRoundStart** : Délai après le début du round (défaut: 2.0s)
-- **DuelStartMessage** : Message au centre de l'écran (spectateurs)
-- **DuelStartMessageWithSpawn** : Message au centre de l'écran (participants)
-- **DuelStartChatMessage** : Message dans le chat
-- **DuelWinMessage** : Message de victoire
-- **GiveKevlar** : Donner un gilet pare-balles (défaut: true)
-- **GiveHelmet** : Donner un casque (défaut: true)
-- **GiveDeagle** : Donner un Deagle (défaut: true)
-- **GiveHEGrenade** : Donner une grenade HE (défaut: true)
-- **GiveFlashbang** : Donner une flashbang (défaut: true)
-- **TerroristPrimaryWeapon** : Arme principale T (défaut: "weapon_ak47")
-- **CTerroristPrimaryWeapon** : Arme principale CT (défaut: "weapon_m4a1_silencer")
+- **DelayBeforeNextDuel**: Delay before next duel (default: 1.0s)
+- **DelayAfterRoundStart**: Delay after round start (default: 2.0s)
+- **EnableDebugMessages**: Enable/disable debug messages in console (default: true)
+- **HideTeamChangeMessages**: Hide team change messages in chat (default: true)
+- **GiveKevlar**: Give kevlar vest (default: true)
+- **GiveHelmet**: Give helmet (default: true)
+- **GiveDeagle**: Give Deagle (default: true)
+- **GiveHEGrenade**: Give HE grenade (default: true)
+- **GiveFlashbang**: Give flashbang (default: true)
+- **TerroristPrimaryWeapon**: T primary weapon (default: "weapon_ak47")
+- **CTerroristPrimaryWeapon**: CT primary weapon (default: "weapon_m4a1_silencer")
 
-### Placeholders pour les messages
+### Localization File (`configs/plugins/AuroraDuel/localization.json`)
 
-- `{comboName}` : Nom du duel
-- `{team}` : Équipe du joueur (T ou CT)
-- `{spawnIndex}` : Index du spawn du joueur
-- `{tCount}` : Nombre de joueurs T
-- `{ctCount}` : Nombre de joueurs CT
-- `{winnerTeam}` : Équipe gagnante
+**This is the main file for all plugin messages and text.** It is automatically created with English defaults on first launch. All user-facing messages are stored here, making it easy to translate the entire plugin to any language.
 
-## 🎮 Commandes
+The localization file contains:
 
-Toutes les commandes nécessitent la permission `@css/root`.
+- **Plugin messages**: Loading, saving, error messages
+- **Command messages**: Success, error, and usage messages for all commands
+- **Duel messages**: Start messages, win messages, chat messages
+- **In-game messages**: Spawn notifications, team information
 
-### Configuration des spawns
+#### Message Placeholders
 
-- `!duel_add_t <NomDuel>` - Ajoute un spawn T à votre position actuelle
-- `!duel_add_ct <NomDuel>` - Ajoute un spawn CT à votre position actuelle
-- `!duel_remove_t_spawn <NomDuel> <index>` - Supprime un spawn T spécifique (index commence à 1)
-- `!duel_remove_ct_spawn <NomDuel> <index>` - Supprime un spawn CT spécifique (index commence à 1)
+All messages support placeholders that are automatically replaced:
 
-### Gestion des duels
+- `{comboName}`: Duel name
+- `{team}`: Player's team (T or CT)
+- `{spawnIndex}`: Player's spawn index
+- `{tCount}`: Number of T players
+- `{ctCount}`: Number of CT players
+- `{winnerTeam}`: Winning team
+- `{0}`, `{1}`, etc.: Format arguments for string.Format
 
-- `!duel_list` - Liste tous les duels configurés sur la carte actuelle
-- `!duel_info <NomDuel>` - Affiche les détails d'un duel (spawns, positions)
-- `!duel_delete <NomDuel>` - Supprime un duel de la carte actuelle
+#### Duel Messages in Localization
 
-### Mode configuration
+The following duel-related messages are configurable in `localization.json`:
 
-- `!duel_config [on|off]` - Active/désactive le mode configuration
-  - En mode `on` : Les duels ne démarrent pas automatiquement, vous pouvez configurer les spawns
-  - En mode `off` : Les duels reprennent automatiquement si des joueurs sont présents
+- **DuelStartMessage**: Center screen message for spectators
+- **DuelStartMessageWithSpawn**: Center screen message for participating players (includes spawn index)
+- **DuelStartChatMessage**: Chat message displayed to all players at duel start
+- **DuelWinMessage**: Victory message displayed when a team wins
 
-### Autres commandes
+## 🎮 Commands
 
-- `!duel_map <NomCarte>` - Change la carte du serveur
-- `!duel_reload` - Recharge les paramètres du plugin
-- `!duel_help` - Affiche la liste de toutes les commandes disponibles
+All commands require `@css/root` permission.
 
-## 🎯 Utilisation
+### Spawn Configuration
 
-### Configuration d'un nouveau duel
+- `!duel_add_t <DuelName>` - Add a T spawn at your current position
+- `!duel_add_ct <DuelName>` - Add a CT spawn at your current position
+- `!duel_remove_t_spawn <DuelName> <index>` - Remove a specific T spawn (index starts at 1)
+- `!duel_remove_ct_spawn <DuelName> <index>` - Remove a specific CT spawn (index starts at 1)
 
-1. Activez le mode configuration : `!duel_config on`
-2. Changez de carte si nécessaire : `!duel_map de_dust2`
-3. Positionnez-vous à l'endroit où vous voulez un spawn T et tapez : `!duel_add_t long_A`
-4. Répétez pour tous les spawns T du duel "long_A"
-5. Positionnez-vous pour les spawns CT et tapez : `!duel_add_ct long_A`
-6. Répétez pour tous les spawns CT
-7. Désactivez le mode configuration : `!duel_config off`
+### Duel Management
 
-### Exemple de configuration
+- `!duel_list` - List all duels configured on the current map
+- `!duel_info <DuelName>` - Display duel details (spawns, positions)
+- `!duel_delete <DuelName>` - Delete a duel from the current map
 
-Pour créer un duel 2v2 sur "long_A" :
+### Configuration Mode
+
+- `!duel_config [on|off]` - Enable/disable configuration mode
+  - In `on` mode: Duels don't start automatically, you can configure spawns
+  - In `off` mode: Duels automatically resume if players are present
+
+### Other Commands
+
+- `!duel_map <MapName>` - Change server map
+- `!duel_reload` - Reload plugin settings
+- `!duel_help` - Display list of all available commands
+
+## 🎯 Usage
+
+### Configuring a New Duel
+
+1. Enable configuration mode: `!duel_config on`
+2. Change map if needed: `!duel_map de_dust2`
+3. Position yourself where you want a T spawn and type: `!duel_add_t long_A`
+4. Repeat for all T spawns for the "long_A" duel
+5. Position yourself for CT spawns and type: `!duel_add_ct long_A`
+6. Repeat for all CT spawns
+7. Disable configuration mode: `!duel_config off`
+
+### Example Configuration
+
+To create a 2v2 duel on "long_A":
 ```
 !duel_config on
 !duel_map de_dust2
-[Se positionner à la position T1] !duel_add_t long_A
-[Se positionner à la position T2] !duel_add_t long_A
-[Se positionner à la position CT1] !duel_add_ct long_A
-[Se positionner à la position CT2] !duel_add_ct long_A
+[Position yourself at T1 position] !duel_add_t long_A
+[Position yourself at T2 position] !duel_add_t long_A
+[Position yourself at CT1 position] !duel_add_ct long_A
+[Position yourself at CT2 position] !duel_add_ct long_A
 !duel_config off
 ```
 
-### Vérification des duels
+### Verifying Duels
 
-- `!duel_list` - Voir tous les duels de la carte
-- `!duel_info long_A` - Voir les détails du duel "long_A"
+- `!duel_list` - See all duels on the map
+- `!duel_info long_A` - See details of the "long_A" duel
 
-## 🔧 Fonctionnalités
+## 🔧 Features
 
-### Gestion automatique des duels
+### Automatic Duel Management
 
-- Sélection aléatoire d'un duel parmi ceux disponibles sur la carte
-- Équilibrage automatique des équipes selon le nombre de spawns disponibles
-- Téléportation automatique des joueurs aux positions configurées
-- Attribution automatique d'équipement (armes, armure, grenades)
-- Nettoyage automatique des armes au sol entre les duels
+- Random selection of a duel among those available on the map
+- Automatic team balancing based on available spawns
+- Automatic player teleportation to configured positions
+- Automatic equipment assignment (weapons, armor, grenades)
+- Automatic cleanup of weapons on the ground between duels
 
-### Système de rounds infinis
+### Infinite Round System
 
-- Rounds de 60 minutes
-- Les rounds ne se terminent pas automatiquement quand une équipe est éliminée
-- Nouveau duel automatique après chaque victoire
-- Les joueurs en trop sont automatiquement mis en spectateur
+- 60-minute rounds
+- Rounds don't automatically end when a team is eliminated
+- Automatic new duel after each victory
+- Extra players are automatically moved to spectator
 
-### Messages personnalisés
+### Complete Internationalization
 
-- Message au centre de l'écran pour chaque joueur avec son index de spawn
-- Message dans le chat pour tous les joueurs
-- Message de victoire personnalisable
+- **All messages centralized** in `localization.json`
+- Default language: English
+- Easy to translate to any language by modifying a single file
+- All user-facing text is translatable (commands, messages, notifications)
+- Placeholder system for dynamic content
 
-## 📁 Structure du projet
+## 📁 Project Structure
 
 ```
 AuroraDuel/
-├── AuroraDuel.cs              # Point d'entrée du plugin
+├── AuroraDuel.cs              # Plugin entry point
 ├── Commands/
-│   └── DuelCommands.cs        # Gestion de toutes les commandes
+│   └── DuelCommands.cs       # Handles all commands
 ├── Managers/
-│   ├── ConfigManager.cs       # Gestion de la configuration des duels
-│   ├── DuelGameManager.cs    # Logique principale du jeu
-│   ├── SettingsManager.cs    # Gestion des paramètres
-│   └── TeleportManager.cs    # Gestion de la téléportation
+│   ├── ConfigManager.cs       # Manages duel configuration
+│   ├── DuelGameManager.cs    # Main game logic
+│   ├── SettingsManager.cs    # Manages settings
+│   ├── LocalizationManager.cs # Manages translations
+│   └── TeleportManager.cs    # Handles teleportation
 ├── Models/
-│   ├── DuelSpawn.cs           # Modèles de données (DuelCombination, SpawnPoint)
-│   └── PluginSettings.cs     # Modèle des paramètres du plugin
+│   ├── DuelSpawn.cs           # Data models (DuelCombination, SpawnPoint)
+│   ├── PluginSettings.cs     # Plugin settings model
+│   └── Localization.cs       # Localization model
 └── configs/
-    └── duel_settings.cfg     # Configuration serveur
+    └── duel_settings.cfg     # Server configuration
 ```
 
-## 📝 Format des données
+## 📝 Data Format
 
-Les duels sont sauvegardés dans `configs/plugins/AuroraDuel/duels.json` :
+Duels are saved in `configs/plugins/AuroraDuel/duels.json`:
 
 ```json
 {
@@ -203,39 +228,88 @@ Les duels sont sauvegardés dans `configs/plugins/AuroraDuel/duels.json` :
 }
 ```
 
-## 🐛 Dépannage
+## 🌍 Localization
 
-### Les duels ne démarrent pas
+The plugin supports full internationalization. **All user-facing messages are stored in the localization file**, making translation simple and centralized.
 
-- Vérifiez qu'au moins un duel est configuré sur la carte actuelle : `!duel_list`
-- Vérifiez que le mode configuration est désactivé : `!duel_config off`
-- Vérifiez qu'il y a au moins un joueur T et un joueur CT en jeu
+### Translating the Plugin
 
-### Les joueurs ne sont pas téléportés
+To translate the plugin to your language:
 
-- Vérifiez que les spawns sont valides : `!duel_info <NomDuel>`
-- Vérifiez que les coordonnées des spawns ne sont pas (0, 0, 0)
+1. Edit `configs/plugins/AuroraDuel/localization.json`
+2. Translate all string values to your language
+3. Keep all placeholders intact (e.g., `{comboName}`, `{tCount}`, `{0}`, etc.)
+4. Save the file
+5. Reload the plugin or use `!duel_reload`
 
-### Les messages ne s'affichent pas
+### Message Categories
 
-- Vérifiez les paramètres dans `settings.json`
-- Rechargez les paramètres : `!duel_reload`
+The localization file is organized into categories:
 
-## 📄 Licence
+- **Plugin messages**: System messages (loading, saving, errors)
+- **Command errors**: Error messages for invalid commands
+- **Command success messages**: Success confirmations
+- **Command usage**: Usage instructions for commands
+- **Duel info**: Information display messages
+- **Duel list**: List formatting messages
+- **Help command**: Help text for all commands
+- **In-game messages**: Player notifications
+- **Duel messages**: Start, win, and chat messages
 
-Ce projet est sous licence libre. Vous êtes libre de l'utiliser, le modifier et le distribuer.
+### Example Translation
 
-## 🤝 Contribution
+To translate to French, you would change:
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
+```json
+{
+  "DuelStartMessage": "{comboName}\n{tCount} T vs {ctCount} CT",
+  "DuelWinMessage": "The {winnerTeam} have won!"
+}
+```
+
+To:
+
+```json
+{
+  "DuelStartMessage": "{comboName}\n{tCount} T vs {ctCount} CT",
+  "DuelWinMessage": "Les {winnerTeam} ont gagné !"
+}
+```
+
+**Note**: All placeholders must remain unchanged for the plugin to work correctly.
+
+## 🐛 Troubleshooting
+
+### Duels Don't Start
+
+- Check that at least one duel is configured on the current map: `!duel_list`
+- Check that configuration mode is disabled: `!duel_config off`
+- Check that there is at least one T player and one CT player in the game
+
+### Players Are Not Teleported
+
+- Check that spawns are valid: `!duel_info <DuelName>`
+- Check that spawn coordinates are not (0, 0, 0)
+
+### Messages Don't Display
+
+- Check settings in `settings.json`
+- Reload settings: `!duel_reload`
+
+## 📄 License
+
+This project is under a free license. You are free to use, modify, and distribute it.
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to open an issue or pull request.
 
 ## 📞 Support
 
-Pour toute question ou problème, ouvrez une issue sur le repository GitHub.
+For any questions or issues, open an issue on the GitHub repository.
 
 ---
 
-**Version** : 1.0.0  
-**Auteur** : AuroraDuel Team  
-**Compatibilité** : Counter-Strike 2, CounterStrikeSharp 1.0.347+
-
+**Version**: 1.0.0  
+**Author**: AuroraDuel Team  
+**Compatibility**: Counter-Strike 2, CounterStrikeSharp 1.0.347+

@@ -12,6 +12,7 @@ public class AuroraDuel : BasePlugin
 
     private ConfigManager? _configManager;
     private SettingsManager? _settingsManager;
+    private LocalizationManager? _localizationManager;
     private DuelCommands? _duelCommands;
     private DuelGameManager? _duelGameManager;
 
@@ -25,23 +26,26 @@ public class AuroraDuel : BasePlugin
             Directory.CreateDirectory(pluginConfigPath);
         }
 
-        // Charger les paramètres du plugin
-        _settingsManager = new SettingsManager(pluginConfigPath);
+        // Load localization
+        _localizationManager = new LocalizationManager(pluginConfigPath);
+
+        // Load plugin settings
+        _settingsManager = new SettingsManager(pluginConfigPath, _localizationManager);
         _settingsManager.LoadSettings();
 
-        // Charger les combinaisons de duels
-        _configManager = new ConfigManager(pluginConfigPath);
+        // Load duel combinations
+        _configManager = new ConfigManager(pluginConfigPath, _localizationManager);
         _configManager.LoadConfig();
 
-        // Initialiser le gestionnaire de jeu
-        _duelGameManager = new DuelGameManager(_configManager, _settingsManager, this);
+        // Initialize game manager
+        _duelGameManager = new DuelGameManager(_configManager, _settingsManager, _localizationManager, this);
         _duelGameManager.RegisterEvents(this);
 
-        // Initialiser les commandes
-        _duelCommands = new DuelCommands(_configManager, _duelGameManager, _settingsManager);
+        // Initialize commands
+        _duelCommands = new DuelCommands(_configManager, _duelGameManager, _settingsManager, _localizationManager);
         _duelCommands.RegisterCommands(this);
 
-        Console.WriteLine("[AuroraDuel] Plugin chargé avec succès !");
+        Console.WriteLine(_localizationManager.GetLocalization().PluginLoaded);
     }
 
     public override void Unload(bool hotReload)

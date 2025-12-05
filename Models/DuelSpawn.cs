@@ -1,27 +1,33 @@
 ﻿using CounterStrikeSharp.API.Core;
-using System.Text.Json.Serialization; // Pour la sérialisation JSON
+using System.Text.Json.Serialization;
 
-// Classe pour stocker la position et l'angle d'un joueur
+namespace AuroraDuel.Models;
+
+/// <summary>
+/// Represents a spawn point with position and angle
+/// </summary>
 public class SpawnPoint
 {
     public float PosX { get; set; }
     public float PosY { get; set; }
     public float PosZ { get; set; }
-
-    // Angle Yaw (rotation horizontale) est souvent le plus important
     public float AngleYaw { get; set; }
 }
 
-// Classe pour stocker la combinaison complète avec listes de spawns
+/// <summary>
+/// Represents a complete duel combination with T and CT spawn lists
+/// </summary>
 public class DuelCombination
 {
-    public string MapName { get; set; } = string.Empty; // La carte sur laquelle la combinaison est définie
-    public string ComboName { get; set; } = string.Empty; // Nom unique (ex: "long_A_v_mid")
+    public string MapName { get; set; } = string.Empty;
+    public string ComboName { get; set; } = string.Empty;
     public List<SpawnPoint> TSpawns { get; set; } = new List<SpawnPoint>();
     public List<SpawnPoint> CTSpawns { get; set; } = new List<SpawnPoint>();
 }
 
-// Classe conteneur pour la sauvegarde
+/// <summary>
+/// Container class for duel configuration storage
+/// </summary>
 public class DuelConfig
 {
     public List<DuelCombination> Combos { get; set; } = new List<DuelCombination>();

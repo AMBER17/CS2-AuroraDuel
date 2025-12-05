@@ -3,15 +3,20 @@ using AuroraDuel.Models;
 
 namespace AuroraDuel.Managers;
 
+/// <summary>
+/// Manages plugin settings
+/// </summary>
 public class SettingsManager
 {
     private readonly string _settingsPath;
+    private readonly LocalizationManager? _localizationManager;
 
     public PluginSettings Settings { get; private set; } = new PluginSettings();
 
-    public SettingsManager(string configDirectory)
+    public SettingsManager(string configDirectory, LocalizationManager? localizationManager = null)
     {
         _settingsPath = Path.Combine(configDirectory, "settings.json");
+        _localizationManager = localizationManager;
     }
 
     public void LoadSettings()
@@ -22,20 +27,25 @@ public class SettingsManager
             {
                 var json = File.ReadAllText(_settingsPath);
                 Settings = JsonSerializer.Deserialize<PluginSettings>(json) ?? new PluginSettings();
-                Console.WriteLine("[AuroraDuel] Paramètres chargés.");
+                var loc = _localizationManager?.GetLocalization();
+                Console.WriteLine(loc?.SettingsLoaded ?? "[AuroraDuel] Settings loaded.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AuroraDuel] Erreur lors du chargement des paramètres : {ex.Message}");
+                var loc = _localizationManager?.GetLocalization();
+                Console.WriteLine(loc != null 
+                    ? string.Format(loc.SettingsLoadError, ex.Message)
+                    : $"[AuroraDuel] Error loading settings: {ex.Message}");
                 Settings = new PluginSettings();
-                SaveSettings(); // Créer un fichier par défaut
+                SaveSettings();
             }
         }
         else
         {
             Settings = new PluginSettings();
-            SaveSettings(); // Créer un fichier par défaut
-            Console.WriteLine("[AuroraDuel] Fichier de paramètres créé avec les valeurs par défaut.");
+            SaveSettings();
+            var loc = _localizationManager?.GetLocalization();
+            Console.WriteLine(loc?.SettingsCreated ?? "[AuroraDuel] Settings file created with default values.");
         }
     }
 
@@ -52,14 +62,18 @@ public class SettingsManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AuroraDuel] Erreur lors de la sauvegarde des paramètres : {ex.Message}");
+            var loc = _localizationManager?.GetLocalization();
+            Console.WriteLine(loc != null
+                ? string.Format(loc.SettingsSaveError, ex.Message)
+                : $"[AuroraDuel] Error saving settings: {ex.Message}");
         }
     }
 
     public void ReloadSettings()
     {
         LoadSettings();
-        Console.WriteLine("[AuroraDuel] Paramètres rechargés.");
+        var loc = _localizationManager?.GetLocalization();
+        Console.WriteLine(loc?.SettingsReloaded ?? "[AuroraDuel] Settings reloaded.");
     }
 }
 

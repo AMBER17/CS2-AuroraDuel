@@ -1,4 +1,5 @@
 ﻿using AuroraDuel.Managers;
+using AuroraDuel.Models;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -7,32 +8,39 @@ using CounterStrikeSharp.API.Modules.Admin;
 
 namespace AuroraDuel.Commands;
 
+/// <summary>
+/// Handles all chat and console commands for the plugin
+/// </summary>
 public class DuelCommands
 {
     private readonly ConfigManager _configManager;
     private readonly DuelGameManager? _duelGameManager;
     private readonly SettingsManager? _settingsManager;
+    private readonly LocalizationManager? _localizationManager;
 
-    public DuelCommands(ConfigManager configManager, DuelGameManager? duelGameManager = null, SettingsManager? settingsManager = null)
+    private Localization Localization => _localizationManager?.GetLocalization() ?? new Localization();
+
+    public DuelCommands(ConfigManager configManager, DuelGameManager? duelGameManager = null, SettingsManager? settingsManager = null, LocalizationManager? localizationManager = null)
     {
         _configManager = configManager;
         _duelGameManager = duelGameManager;
         _settingsManager = settingsManager;
+        _localizationManager = localizationManager;
     }
 
     public void RegisterCommands(BasePlugin plugin)
     {
-        plugin.AddCommand("duel_add_t", "duel_add_t <NomUniqueDuDuel>", Command_AddTSpawn);
-        plugin.AddCommand("duel_add_ct", "duel_add_ct <NomUniqueDuDuel>", Command_AddCTSpawn);
-        plugin.AddCommand("duel_remove_t_spawn", "duel_remove_t_spawn <NomDuel> <index>", Command_RemoveTSpawn);
-        plugin.AddCommand("duel_remove_ct_spawn", "duel_remove_ct_spawn <NomDuel> <index>", Command_RemoveCTSpawn);
-        plugin.AddCommand("duel_info", "duel_info <NomDuel>", Command_DuelInfo);
-        plugin.AddCommand("duel_config", "Active/Désactive le mode configuration. Usage: !duel_config [on|off]", Command_ToggleConfigMode);
-        plugin.AddCommand("duel_map", "Change la carte. Usage: !duel_map <nom_de_la_carte>", Command_ChangeMap);
-        plugin.AddCommand("duel_reload", "Recharge les paramètres du plugin", Command_ReloadSettings);
-        plugin.AddCommand("duel_list", "Liste tous les duels de la carte actuelle", Command_ListDuels);
-        plugin.AddCommand("duel_delete", "Supprime un duel. Usage: !duel_delete <NomDuDuel>", Command_DeleteDuel);
-        plugin.AddCommand("duel_help", "Affiche la liste de toutes les commandes disponibles", Command_Help);
+        plugin.AddCommand("duel_add_t", "duel_add_t <UniqueDuelName>", Command_AddTSpawn);
+        plugin.AddCommand("duel_add_ct", "duel_add_ct <UniqueDuelName>", Command_AddCTSpawn);
+        plugin.AddCommand("duel_remove_t_spawn", "duel_remove_t_spawn <DuelName> <index>", Command_RemoveTSpawn);
+        plugin.AddCommand("duel_remove_ct_spawn", "duel_remove_ct_spawn <DuelName> <index>", Command_RemoveCTSpawn);
+        plugin.AddCommand("duel_info", "duel_info <DuelName>", Command_DuelInfo);
+        plugin.AddCommand("duel_config", "Enable/disable configuration mode. Usage: !duel_config [on|off]", Command_ToggleConfigMode);
+        plugin.AddCommand("duel_map", "Change the map. Usage: !duel_map <map_name>", Command_ChangeMap);
+        plugin.AddCommand("duel_reload", "Reload plugin settings", Command_ReloadSettings);
+        plugin.AddCommand("duel_list", "List all duels on current map", Command_ListDuels);
+        plugin.AddCommand("duel_delete", "Delete a duel. Usage: !duel_delete <DuelName>", Command_DeleteDuel);
+        plugin.AddCommand("duel_help", "Display list of all available commands", Command_Help);
     }
 
     [RequiresPermissions("@css/root")]
@@ -40,7 +48,7 @@ public class DuelCommands
     {
         if (_settingsManager == null)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Erreur: SettingsManager non disponible.";
+            string message = $"{ChatColors.Red}{Localization.ErrorSettingsManagerNotAvailable}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -49,20 +57,22 @@ public class DuelCommands
         }
 
         _settingsManager.ReloadSettings();
-        string successMessage = $"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Paramètres {ChatColors.Green}rechargés avec succès{ChatColors.Default} !";
+        string successMessage = $"{ChatColors.Green}{Localization.SettingsReloadedSuccess}";
         if (player != null && player.IsValid)
             player.PrintToChat(successMessage);
         else
             info.ReplyToCommand(successMessage);
     }
 
-    [RequiresPermissions("@css/root")] // Utilisez @duels/changemap si vous avez configuré vos permissions
+    /// <summary>
+    /// Changes the server map
+    /// </summary>
+    [RequiresPermissions("@css/root")]
     public void Command_ChangeMap(CCSPlayerController? player, CommandInfo info)
     {
-        // 1. Vérification des arguments
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Usage: {ChatColors.Yellow}!duel_map <nom_de_la_carte>";
+            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelMap, "!duel_map")}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -72,10 +82,9 @@ public class DuelCommands
 
         string newMapName = info.GetArg(1).Trim();
 
-        // 2. Vérification que le nom de la carte n'est pas vide
         if (string.IsNullOrWhiteSpace(newMapName))
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Le nom de la carte ne peut pas être vide.";
+            string message = $"{ChatColors.Red}{Localization.ErrorMapNameEmpty}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -83,27 +92,20 @@ public class DuelCommands
             return;
         }
 
-        // 3. Exécution du changement de carte
-        Server.PrintToChatAll($"{ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}Changement de carte imminent vers : {ChatColors.Yellow}{newMapName}{ChatColors.Default}...");
-
-        // Utiliser CHANGELEVEL est souvent plus propre que MAP dans un plugin
+        Server.PrintToChatAll($"{ChatColors.LightBlue}{string.Format(Localization.MapChangeImminent, newMapName)}");
         Server.ExecuteCommand($"changelevel {newMapName}");
-
-        // Note : Si la carte n'existe pas, changelevel est plus tolérant et ne crashe pas.
     }
 
     /// <summary>
-    /// Active ou désactive le mode configuration.
+    /// Enables or disables configuration mode
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_ToggleConfigMode(CCSPlayerController? player, CommandInfo info)
     {
         bool newState;
 
-        // Déterminer l'état souhaité (on, off, ou toggle si aucun argument)
         if (info.ArgCount < 2)
         {
-            // Basculer l'état actuel
             newState = !DuelGameManager.IsConfigModeActive;
         }
         else
@@ -119,7 +121,7 @@ public class DuelCommands
             }
             else
             {
-                string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Argument invalide. Utilisation: {ChatColors.Yellow}!duel_config [on|off]";
+                string message = $"{ChatColors.Red}{string.Format(Localization.ErrorInvalidArgument, "!duel_config [on|off]")}";
                 if (player != null && player.IsValid)
                     player.PrintToChat(message);
                 else
@@ -128,12 +130,12 @@ public class DuelCommands
             }
         }
 
-        // Appliquer l'état
         if (_duelGameManager != null)
         {
             _duelGameManager.SetConfigMode(newState);
-            string status = newState ? $"{ChatColors.Green}ACTIF" : $"{ChatColors.Red}INACTIF";
-            string message = $"{ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}Mode configuration: {status}{ChatColors.Default}";
+            string message = newState 
+                ? $"{ChatColors.LightBlue}{Localization.ConfigModeStatusActive}"
+                : $"{ChatColors.LightBlue}{Localization.ConfigModeStatusInactive}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -141,7 +143,7 @@ public class DuelCommands
         }
         else
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Erreur: DuelGameManager n'est pas disponible.";
+            string message = $"{ChatColors.Red}{Localization.ErrorDuelGameManagerNotAvailable}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -149,18 +151,21 @@ public class DuelCommands
         }
     }
 
-    private SpawnPoint GetCurrentSpawnPoint(CCSPlayerController player)
+    /// <summary>
+    /// Gets the current spawn point from player position
+    /// </summary>
+    private Models.SpawnPoint GetCurrentSpawnPoint(CCSPlayerController player)
     {
         if (player.Pawn?.Value == null)
         {
-            throw new InvalidOperationException("Impossible d'obtenir la position: Pawn est invalide.");
+            throw new InvalidOperationException("Cannot get position: Pawn is invalid.");
         }
 
         var pawn = player.Pawn.Value;
         var origin = pawn.AbsOrigin!;
         var angle = pawn.AbsRotation!;
 
-        return new SpawnPoint
+        return new Models.SpawnPoint
         {
             PosX = origin.X,
             PosY = origin.Y,
@@ -168,8 +173,6 @@ public class DuelCommands
             AngleYaw = angle.Y
         };
     }
-
-    // --- Fonctions d'ajout de spawns ---
 
     [RequiresPermissions("@css/root")]
     public void Command_AddTSpawn(CCSPlayerController? player, CommandInfo info)
@@ -184,13 +187,14 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Ajoute un spawn à la liste T ou CT d'un duel.
+    /// Adds a spawn to the T or CT list of a duel
     /// </summary>
     private void AddSpawn(CCSPlayerController? player, CommandInfo info, bool isTerrorist)
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Usage: {ChatColors.Yellow}{info.GetArg(0)} <NomUniqueDuDuel>";
+            string usage = isTerrorist ? Localization.UsageAddTSpawn : Localization.UsageAddCTSpawn;
+            string message = $"{ChatColors.Red}{string.Format(usage, info.GetArg(0))}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -200,7 +204,7 @@ public class DuelCommands
 
         if (player == null || !player.IsValid)
         {
-            info.ReplyToCommand($"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Joueur invalide.");
+            info.ReplyToCommand($"{ChatColors.Red}{Localization.ErrorInvalidPlayer}");
             return;
         }
 
@@ -217,28 +221,26 @@ public class DuelCommands
             {
                 MapName = mapName,
                 ComboName = comboName,
-                TSpawns = new List<SpawnPoint>(),
-                CTSpawns = new List<SpawnPoint>()
+                TSpawns = new List<Models.SpawnPoint>(),
+                CTSpawns = new List<Models.SpawnPoint>()
             };
             _configManager.CurrentConfig.Combos.Add(combo);
-            player.PrintToChat($"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Nouvelle combinaison {ChatColors.Yellow}'{comboName}' {ChatColors.Default}créée sur la carte {ChatColors.LightBlue}{mapName}{ChatColors.Default}.");
+            player.PrintToChat($"{ChatColors.Green}{string.Format(Localization.DuelCreated, comboName, mapName)}");
         }
 
         var spawnPoint = GetCurrentSpawnPoint(player);
         if (isTerrorist)
         {
             combo.TSpawns.Add(spawnPoint);
-            player.PrintToChat($"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Spawn {ChatColors.Red}T {ChatColors.Default}ajouté pour {ChatColors.Yellow}'{comboName}' {ChatColors.Default}({ChatColors.LightBlue}{combo.TSpawns.Count} {ChatColors.Red}T {ChatColors.Default}au total).");
+            player.PrintToChat($"{ChatColors.Green}{string.Format(Localization.TSpawnAdded, comboName, combo.TSpawns.Count)}");
         }
         else
         {
             combo.CTSpawns.Add(spawnPoint);
-            player.PrintToChat($"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Spawn {ChatColors.LightBlue}CT {ChatColors.Default}ajouté pour {ChatColors.Yellow}'{comboName}' {ChatColors.Default}({ChatColors.LightBlue}{combo.CTSpawns.Count} {ChatColors.LightBlue}CT {ChatColors.Default}au total).");
+            player.PrintToChat($"{ChatColors.Green}{string.Format(Localization.CTSpawnAdded, comboName, combo.CTSpawns.Count)}");
         }
 
         _configManager.SaveConfig();
-        // Note: Les modifications sont directement dans _configManager.CurrentConfig qui est partagé avec DuelGameManager
-        // donc elles sont immédiatement disponibles pour la logique de jeu
     }
 
     /// <summary>
@@ -260,7 +262,7 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Supprime un spawn à la liste T ou CT d'un duel.
+    /// Removes a spawn from the T or CT list of a duel
     /// </summary>
     private void RemoveSpawn(CCSPlayerController? player, CommandInfo info, bool isTerrorist)
     {
@@ -279,7 +281,7 @@ public class DuelCommands
 
         if (!int.TryParse(info.GetArg(2), out int index) || index < 1)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}L'index doit être un nombre entier positif (commence à 1).";
+            string message = $"{ChatColors.Red}{Localization.ErrorInvalidIndex}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -293,7 +295,7 @@ public class DuelCommands
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Duel {ChatColors.Yellow}'{comboName}' {ChatColors.Default}introuvable sur la carte {ChatColors.LightBlue}{mapName}{ChatColors.Default}.";
+            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -308,8 +310,8 @@ public class DuelCommands
 
         if (index > validSpawns.Count)
         {
-            string teamNameColored = isTerrorist ? $"{ChatColors.Red}T" : $"{ChatColors.LightBlue}CT";
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Index {ChatColors.Yellow}{index} {ChatColors.Default}invalide. Il n'y a que {ChatColors.LightBlue}{validSpawns.Count} {ChatColors.Default}spawn(s) {teamNameColored}{ChatColors.Default} valide(s).";
+            string teamName = isTerrorist ? "T" : "CT";
+            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorIndexOutOfRange, index, validSpawns.Count, teamName)}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -317,14 +319,12 @@ public class DuelCommands
             return;
         }
 
-        // Trouver le spawn dans la liste complète (avec les spawns invalides)
         var spawnToRemove = validSpawns[index - 1];
         spawns.Remove(spawnToRemove);
 
-        string teamName = isTerrorist ? "T" : "CT";
         string successMessage = isTerrorist
-            ? $"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Spawn {ChatColors.Red}{teamName} {ChatColors.Default}index {ChatColors.Yellow}{index} {ChatColors.Green}supprimé {ChatColors.Default}du duel {ChatColors.Yellow}'{comboName}'{ChatColors.Default}."
-            : $"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Spawn {ChatColors.LightBlue}{teamName} {ChatColors.Default}index {ChatColors.Yellow}{index} {ChatColors.Green}supprimé {ChatColors.Default}du duel {ChatColors.Yellow}'{comboName}'{ChatColors.Default}.";
+            ? $"{ChatColors.Green}{string.Format(Localization.TSpawnRemoved, index, comboName)}"
+            : $"{ChatColors.Green}{string.Format(Localization.CTSpawnRemoved, index, comboName)}";
         if (player != null && player.IsValid)
             player.PrintToChat(successMessage);
         else
@@ -334,14 +334,14 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Affiche les détails d'un duel.
+    /// Displays duel details
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_DuelInfo(CCSPlayerController? player, CommandInfo info)
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Usage: {ChatColors.Yellow}!duel_info <NomDuel>";
+            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelInfo, "!duel_info")}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -358,7 +358,7 @@ public class DuelCommands
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Duel {ChatColors.Yellow}'{comboName}' {ChatColors.Default}introuvable sur la carte {ChatColors.LightBlue}{mapName}{ChatColors.Default}.";
+            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -375,63 +375,62 @@ public class DuelCommands
 
         if (player != null && player.IsValid)
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}=== Informations du duel '{comboName}' ===");
-            player.PrintToChat($" {ChatColors.Green}Carte: {ChatColors.LightBlue}{mapName}");
-            player.PrintToChat($" {ChatColors.Green}Spawns {ChatColors.Red}T: {ChatColors.LightBlue}{validTSpawns.Count}");
-            player.PrintToChat($" {ChatColors.Green}Spawns {ChatColors.LightBlue}CT: {ChatColors.LightBlue}{validCTSpawns.Count}");
+            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{string.Format(Localization.DuelInfoHeader, comboName)}");
+            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoMap, mapName)}");
+            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoTSpawns, validTSpawns.Count)}");
+            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoCTSpawns, validCTSpawns.Count)}");
             
             if (validTSpawns.Count > 0)
             {
-                player.PrintToChat($" {ChatColors.Red}Spawns T:");
+                player.PrintToChat($" {ChatColors.Red}{Localization.DuelInfoTSpawnsList}");
                 for (int i = 0; i < validTSpawns.Count; i++)
                 {
                     var spawn = validTSpawns[i];
-                    player.PrintToChat($"   {ChatColors.Default}{i + 1}. {ChatColors.Yellow}X: {spawn.PosX:F1} {ChatColors.Default}Y: {ChatColors.Yellow}{spawn.PosY:F1} {ChatColors.Default}Z: {ChatColors.Yellow}{spawn.PosZ:F1}");
+                    player.PrintToChat($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
                 }
             }
             
             if (validCTSpawns.Count > 0)
             {
-                player.PrintToChat($" {ChatColors.LightBlue}Spawns CT:");
+                player.PrintToChat($" {ChatColors.LightBlue}{Localization.DuelInfoCTSpawnsList}");
                 for (int i = 0; i < validCTSpawns.Count; i++)
                 {
                     var spawn = validCTSpawns[i];
-                    player.PrintToChat($"   {ChatColors.Default}{i + 1}. {ChatColors.Yellow}X: {spawn.PosX:F1} {ChatColors.Default}Y: {ChatColors.Yellow}{spawn.PosY:F1} {ChatColors.Default}Z: {ChatColors.Yellow}{spawn.PosZ:F1}");
+                    player.PrintToChat($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
                 }
             }
         }
         else
         {
-            // Console output
-            Console.WriteLine($"[AuroraDuel] === Informations du duel '{comboName}' ===");
-            Console.WriteLine($"Carte: {mapName}");
-            Console.WriteLine($"Spawns T: {validTSpawns.Count}");
-            Console.WriteLine($"Spawns CT: {validCTSpawns.Count}");
+            Console.WriteLine($"[AuroraDuel] {string.Format(Localization.DuelInfoHeader, comboName)}");
+            Console.WriteLine(string.Format(Localization.DuelInfoMap, mapName));
+            Console.WriteLine(string.Format(Localization.DuelInfoTSpawns, validTSpawns.Count));
+            Console.WriteLine(string.Format(Localization.DuelInfoCTSpawns, validCTSpawns.Count));
             
             if (validTSpawns.Count > 0)
             {
-                Console.WriteLine("Spawns T:");
+                Console.WriteLine(Localization.DuelInfoTSpawnsList);
                 for (int i = 0; i < validTSpawns.Count; i++)
                 {
                     var spawn = validTSpawns[i];
-                    Console.WriteLine($"  {i + 1}. X: {spawn.PosX:F1} Y: {spawn.PosY:F1} Z: {spawn.PosZ:F1}");
+                    Console.WriteLine(string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ));
                 }
             }
             
             if (validCTSpawns.Count > 0)
             {
-                Console.WriteLine("Spawns CT:");
+                Console.WriteLine(Localization.DuelInfoCTSpawnsList);
                 for (int i = 0; i < validCTSpawns.Count; i++)
                 {
                     var spawn = validCTSpawns[i];
-                    Console.WriteLine($"  {i + 1}. X: {spawn.PosX:F1} Y: {spawn.PosY:F1} Z: {spawn.PosZ:F1}");
+                    Console.WriteLine(string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ));
                 }
             }
         }
     }
 
     /// <summary>
-    /// Liste tous les duels de la carte actuelle.
+    /// Lists all duels on the current map
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_ListDuels(CCSPlayerController? player, CommandInfo info)
@@ -444,7 +443,7 @@ public class DuelCommands
 
         if (duelsOnMap.Count == 0)
         {
-            string message = $"{ChatColors.Yellow}[AuroraDuel] {ChatColors.Default}Aucun duel configuré sur la carte {ChatColors.LightBlue}{currentMap}{ChatColors.Default}.";
+            string message = $"{ChatColors.Yellow}{string.Format(Localization.ErrorNoDuelsOnMap, currentMap)}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -454,22 +453,20 @@ public class DuelCommands
 
         if (player != null && player.IsValid)
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}{ChatColors.Yellow}{duelsOnMap.Count} {ChatColors.Default}duel(s) sur {ChatColors.LightBlue}{currentMap}{ChatColors.Default}:");
+            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}{ChatColors.Yellow}{string.Format(Localization.DuelListHeader, duelsOnMap.Count, currentMap)}");
             
             foreach (var duel in duelsOnMap)
             {
-                // Compter les spawns configurés
                 int tSpawns = duel.TSpawns
                     .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
                 int ctSpawns = duel.CTSpawns
                     .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
                 
-                player.PrintToChat($"  {ChatColors.Green}• {ChatColors.Yellow}{duel.ComboName} {ChatColors.Default}({ChatColors.Red}{tSpawns} T {ChatColors.Default}/ {ChatColors.LightBlue}{ctSpawns} CT{ChatColors.Default})");
+                player.PrintToChat($"  {ChatColors.Green}• {ChatColors.Yellow}{string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns)}");
             }
         }
         else
         {
-            // Console output
             foreach (var duel in duelsOnMap)
             {
                 int tSpawns = duel.TSpawns
@@ -477,20 +474,20 @@ public class DuelCommands
                 int ctSpawns = duel.CTSpawns
                     .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
                 
-                Console.WriteLine($"  • {duel.ComboName} ({tSpawns} T / {ctSpawns} CT)");
+                Console.WriteLine(string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns));
             }
         }
     }
 
     /// <summary>
-    /// Supprime un duel de la carte actuelle.
+    /// Deletes a duel from the current map
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_DeleteDuel(CCSPlayerController? player, CommandInfo info)
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Usage: {ChatColors.Yellow}!duel_delete <NomDuDuel>";
+            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelDelete, "!duel_delete")}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -507,7 +504,7 @@ public class DuelCommands
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Duel {ChatColors.Yellow}'{comboName}' {ChatColors.Default}introuvable sur la carte {ChatColors.LightBlue}{mapName}{ChatColors.Default}.";
+            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
             if (player != null && player.IsValid)
                 player.PrintToChat(message);
             else
@@ -518,7 +515,7 @@ public class DuelCommands
         _configManager.CurrentConfig.Combos.Remove(combo);
         _configManager.SaveConfig();
 
-        string successMessage = $"{ChatColors.Green}[AuroraDuel] {ChatColors.Default}Duel {ChatColors.Yellow}'{comboName}' {ChatColors.Green}supprimé avec succès{ChatColors.Default}.";
+        string successMessage = $"{ChatColors.Green}{string.Format(Localization.DuelDeleted, comboName)}";
         if (player != null && player.IsValid)
             player.PrintToChat(successMessage);
         else
@@ -526,53 +523,52 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Affiche l'aide avec toutes les commandes disponibles.
+    /// Displays help with all available commands
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_Help(CCSPlayerController? player, CommandInfo info)
     {
         if (player != null && player.IsValid)
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}=== Commandes disponibles ===");
-            player.PrintToChat($" {ChatColors.Green}Configuration des spawns:");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}!duel_add_t {ChatColors.Yellow}<NomDuel> {ChatColors.Default}- Ajoute un spawn T à votre position");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_add_ct {ChatColors.Yellow}<NomDuel> {ChatColors.Default}- Ajoute un spawn CT à votre position");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}!duel_remove_t_spawn {ChatColors.Yellow}<NomDuel> <index> {ChatColors.Default}- Supprime un spawn T spécifique");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_remove_ct_spawn {ChatColors.Yellow}<NomDuel> <index> {ChatColors.Default}- Supprime un spawn CT spécifique");
+            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{Localization.HelpHeader}");
+            player.PrintToChat($" {ChatColors.Green}{Localization.HelpSpawnConfig}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpAddTSpawn, "!duel_add_t")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpAddCTSpawn, "!duel_add_ct")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpRemoveTSpawn, "!duel_remove_t_spawn")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpRemoveCTSpawn, "!duel_remove_ct_spawn")}");
             player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Green}Gestion des duels:");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_list {ChatColors.Default}- Liste tous les duels de la carte actuelle");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_info {ChatColors.Yellow}<NomDuel> {ChatColors.Default}- Affiche les détails d'un duel");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_delete {ChatColors.Yellow}<NomDuel> {ChatColors.Default}- Supprime un duel de la carte");
+            player.PrintToChat($" {ChatColors.Green}{Localization.HelpDuelManagement}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelList, "!duel_list")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelInfo, "!duel_info")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelDelete, "!duel_delete")}");
             player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Green}Autres commandes:");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_config {ChatColors.Yellow}[on|off] {ChatColors.Default}- Active/désactive le mode configuration");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_map {ChatColors.Yellow}<NomCarte> {ChatColors.Default}- Change la carte du serveur");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_reload {ChatColors.Default}- Recharge les paramètres du plugin");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}!duel_help {ChatColors.Default}- Affiche cette aide");
+            player.PrintToChat($" {ChatColors.Green}{Localization.HelpOtherCommands}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelConfig, "!duel_config")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelMap, "!duel_map")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelReload, "!duel_reload")}");
+            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelHelp, "!duel_help")}");
             player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Yellow}Note: {ChatColors.Default}Toutes les commandes nécessitent la permission {ChatColors.Red}@css/root");
+            player.PrintToChat($" {ChatColors.Yellow}{string.Format(Localization.HelpNote, "@css/root")}");
         }
         else
         {
-            // Console output
-            Console.WriteLine("[AuroraDuel] === Commandes disponibles ===");
-            Console.WriteLine("Configuration des spawns:");
-            Console.WriteLine("  !duel_add_t <NomDuel> - Ajoute un spawn T à votre position");
-            Console.WriteLine("  !duel_add_ct <NomDuel> - Ajoute un spawn CT à votre position");
-            Console.WriteLine("  !duel_remove_t_spawn <NomDuel> <index> - Supprime un spawn T spécifique");
-            Console.WriteLine("  !duel_remove_ct_spawn <NomDuel> <index> - Supprime un spawn CT spécifique");
+            Console.WriteLine($"[AuroraDuel] {Localization.HelpHeader}");
+            Console.WriteLine(Localization.HelpSpawnConfig);
+            Console.WriteLine(string.Format(Localization.HelpAddTSpawn, "!duel_add_t"));
+            Console.WriteLine(string.Format(Localization.HelpAddCTSpawn, "!duel_add_ct"));
+            Console.WriteLine(string.Format(Localization.HelpRemoveTSpawn, "!duel_remove_t_spawn"));
+            Console.WriteLine(string.Format(Localization.HelpRemoveCTSpawn, "!duel_remove_ct_spawn"));
             Console.WriteLine("");
-            Console.WriteLine("Gestion des duels:");
-            Console.WriteLine("  !duel_list - Liste tous les duels de la carte actuelle");
-            Console.WriteLine("  !duel_info <NomDuel> - Affiche les détails d'un duel");
-            Console.WriteLine("  !duel_delete <NomDuel> - Supprime un duel de la carte");
+            Console.WriteLine(Localization.HelpDuelManagement);
+            Console.WriteLine(string.Format(Localization.HelpDuelList, "!duel_list"));
+            Console.WriteLine(string.Format(Localization.HelpDuelInfo, "!duel_info"));
+            Console.WriteLine(string.Format(Localization.HelpDuelDelete, "!duel_delete"));
             Console.WriteLine("");
-            Console.WriteLine("Autres commandes:");
-            Console.WriteLine("  !duel_config [on|off] - Active/désactive le mode configuration");
-            Console.WriteLine("  !duel_map <NomCarte> - Change la carte du serveur");
-            Console.WriteLine("  !duel_reload - Recharge les paramètres du plugin");
-            Console.WriteLine("  !duel_help - Affiche cette aide");
+            Console.WriteLine(Localization.HelpOtherCommands);
+            Console.WriteLine(string.Format(Localization.HelpDuelConfig, "!duel_config"));
+            Console.WriteLine(string.Format(Localization.HelpDuelMap, "!duel_map"));
+            Console.WriteLine(string.Format(Localization.HelpDuelReload, "!duel_reload"));
+            Console.WriteLine(string.Format(Localization.HelpDuelHelp, "!duel_help"));
         }
     }
 }

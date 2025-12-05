@@ -7,10 +7,14 @@ using AuroraDuel.Models;
 
 namespace AuroraDuel.Managers;
 
+/// <summary>
+/// Manages duel game logic, player handling, and game events
+/// </summary>
 public class DuelGameManager
 {
     private readonly ConfigManager _configManager;
     private readonly SettingsManager _settingsManager;
+    private readonly LocalizationManager? _localizationManager;
     private readonly Random _random = new Random();
     private readonly BasePlugin _pluginInstance;
     private DuelCombination? _currentDuelCombo = null;
@@ -20,11 +24,11 @@ public class DuelGameManager
 
     public static bool IsConfigModeActive { get; private set; } = false;
 
-    // Raccourci pour accéder aux settings
     private PluginSettings Settings => _settingsManager.Settings;
+    private Localization Localization => _localizationManager?.GetLocalization() ?? new Localization();
 
     /// <summary>
-    /// Vérifie si on est dans un vrai round de jeu (pas warmup).
+    /// Checks if we are in a valid game round (not warmup)
     /// </summary>
     private bool IsValidGameRound()
     {
@@ -33,10 +37,11 @@ public class DuelGameManager
         return !gameRules.WarmupPeriod;
     }
 
-    public DuelGameManager(ConfigManager configManager, SettingsManager settingsManager, BasePlugin pluginInstance)
+    public DuelGameManager(ConfigManager configManager, SettingsManager settingsManager, LocalizationManager? localizationManager, BasePlugin pluginInstance)
     {
         _configManager = configManager;
         _settingsManager = settingsManager;
+        _localizationManager = localizationManager;
         _pluginInstance = pluginInstance;
     }
 
@@ -50,25 +55,25 @@ public class DuelGameManager
             _isGameStarted = false;
             Server.ExecuteCommand("sv_cheats 1");
             Server.ExecuteCommand("mp_restartgame 1");
-            Server.PrintToChatAll($"{ChatColors.Green}[DUEL CONFIG] {ChatColors.Default}Mode configuration ACTIF.");
+            Server.PrintToChatAll($"{ChatColors.Green}{Localization.ConfigModeActive}");
         }
         else
         {
             Server.ExecuteCommand("sv_cheats 0");
-            // Recharger la config des duels depuis le fichier
+            // Reload duel config from file
             _configManager.LoadConfig();
             Server.ExecuteCommand("mp_restartgame 1");
             _pluginInstance.AddTimer(1.0f, () => 
             {
                 LoadDuelConfigs(_pluginInstance);
-                // Réinitialiser l'état du jeu pour qu'il redémarre
+                // Reset game state to restart
                 _isGameStarted = false;
                 _isDuelInProgress = false;
                 
-                // Vérifier s'il y a déjà des joueurs en T/CT pour démarrer le jeu
+                // Check if there are already players in T/CT to start the game
                 CheckAndStartGameIfPlayersPresent();
             });
-            Server.PrintToChatAll($"{ChatColors.Red}[DUEL CONFIG] {ChatColors.Default}Mode configuration INACTIF.");
+            Server.PrintToChatAll($"{ChatColors.Red}{Localization.ConfigModeInactive}");
         }
     }
 
@@ -76,13 +81,10 @@ public class DuelGameManager
     {
         plugin.RegisterEventHandler<EventRoundStart>(OnRoundStart);
         plugin.RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
-        // Mode Pre pour pouvoir bloquer le broadcast du message de changement d'équipe
+        // Pre mode to block team change message broadcast
         plugin.RegisterEventHandler<EventPlayerTeam>(OnPlayerTeam, HookMode.Pre);
         plugin.RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         plugin.RegisterListener<Listeners.OnMapStart>(OnMapStart);
-        
-        if (Settings.EnableDebugMessages)
-            Console.WriteLine("[AuroraDuel] En attente d'un joueur en T ou CT...");
     }
 
     private void OnMapStart(string mapName)
@@ -91,14 +93,11 @@ public class DuelGameManager
         _isDuelInProgress = false;
         _currentDuelCombo = null;
         _currentDuelPlayers = null;
-        
-        if (Settings.EnableDebugMessages)
-            Console.WriteLine($"[AuroraDuel] Nouvelle carte : {mapName}. En attente d'un joueur en T ou CT...");
     }
 
     public HookResult OnPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
     {
-        // Masquer le message de changement d'équipe (mode Pre requis)
+        // Hide team change message (Pre mode required)
         if (Settings.HideTeamChangeMessages)
         {
             info.DontBroadcast = true;
@@ -110,7 +109,7 @@ public class DuelGameManager
         var player = @event.Userid;
         if (player == null || !player.IsValid || player.IsHLTV) return HookResult.Continue;
 
-        // Ignorer les bots pour la logique de démarrage
+        // Ignore bots for startup logic
         if (player.IsBot) return HookResult.Continue;
 
         int newTeam = @event.Team;
@@ -119,9 +118,6 @@ public class DuelGameManager
         if (!_isGameStarted && joinsPlayableTeam)
         {
             _isGameStarted = true;
-            
-            if (Settings.EnableDebugMessages)
-                Console.WriteLine($"[AuroraDuel] Joueur détecté en équipe : {player.PlayerName}");
 
             _pluginInstance.AddTimer(1.0f, () =>
             {
@@ -154,14 +150,11 @@ public class DuelGameManager
         {
             _isGameStarted = false;
             _isDuelInProgress = false;
-            
-            if (Settings.EnableDebugMessages)
-                Console.WriteLine("[AuroraDuel] Plus aucun joueur en T ou CT. En attente d'un joueur...");
         }
     }
 
     /// <summary>
-    /// Vérifie s'il y a des joueurs en T/CT et démarre le jeu si nécessaire.
+    /// Checks if there are players in T/CT and starts the game if needed
     /// </summary>
     private void CheckAndStartGameIfPlayersPresent()
     {
@@ -175,9 +168,6 @@ public class DuelGameManager
         if (playersInTeam.Count > 0)
         {
             _isGameStarted = true;
-            
-            if (Settings.EnableDebugMessages)
-                Console.WriteLine($"[AuroraDuel] Joueurs détectés après sortie du mode config. Démarrage du jeu...");
 
             _pluginInstance.AddTimer(1.0f, () =>
             {
@@ -187,13 +177,16 @@ public class DuelGameManager
         }
     }
 
+    /// <summary>
+    /// Loads server configuration from duel_settings.cfg file
+    /// </summary>
     public static void LoadDuelConfigs(BasePlugin plugin)
     {
         string configFilePath = Path.Combine(plugin.ModuleDirectory, "configs", "duel_settings.cfg");
 
         if (!File.Exists(configFilePath))
         {
-            Console.WriteLine($"[AuroraDuel] Attention: Fichier de configuration non trouvé : {configFilePath}");
+            Console.WriteLine($"[AuroraDuel] Warning: Configuration file not found: {configFilePath}");
             return;
         }
 
@@ -210,7 +203,7 @@ public class DuelGameManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AuroraDuel] Erreur lors du chargement de la config : {ex.Message}");
+            Console.WriteLine($"[AuroraDuel] Error loading config: {ex.Message}");
         }
     }
 
@@ -220,8 +213,6 @@ public class DuelGameManager
 
         if (!IsValidGameRound())
         {
-            if (Settings.EnableDebugMessages)
-                Console.WriteLine("[AuroraDuel] Round ignoré (warmup ou intro).");
             return HookResult.Continue;
         }
 
@@ -236,6 +227,9 @@ public class DuelGameManager
         return HookResult.Continue;
     }
 
+    /// <summary>
+    /// Checks if a team has been eliminated and starts the next duel
+    /// </summary>
     private void CheckTeamElimination()
     {
         if (!_isDuelInProgress) return;
@@ -251,8 +245,7 @@ public class DuelGameManager
             _isDuelInProgress = false;
             string winnerTeam = aliveTerrorists == 0 ? "CT" : "T";
             
-            // Message au centre de l'écran
-            string winMessage = Settings.DuelWinMessage.Replace("{winnerTeam}", winnerTeam);
+            string winMessage = Localization.DuelWinMessage.Replace("{winnerTeam}", winnerTeam);
             foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV))
             {
                 player.PrintToCenter(winMessage);
@@ -262,13 +255,15 @@ public class DuelGameManager
         }
     }
 
+    /// <summary>
+    /// Starts the next duel by selecting a random combination and teleporting players
+    /// </summary>
     private void StartNextDuel()
     {
         if (!_isGameStarted) return;
         
         _isDuelInProgress = false;
 
-        // Nettoyer les armes au sol
         RemoveDroppedWeapons();
 
         var currentMapName = Server.MapName;
@@ -278,7 +273,7 @@ public class DuelGameManager
 
         if (availableCombos.Count == 0)
         {
-            Server.PrintToChatAll($"{ChatColors.Red}[AuroraDuel] Aucune combinaison de duel pour la carte {currentMapName}.");
+            Server.PrintToChatAll($"{ChatColors.Red}{string.Format(Localization.ErrorNoCombinationsForMap, currentMapName)}");
             return;
         }
 
@@ -287,7 +282,7 @@ public class DuelGameManager
 
         if (_currentDuelPlayers.Count == 0)
         {
-            Server.PrintToChatAll($"{ChatColors.Red}[AuroraDuel] Aucun joueur disponible pour le duel.");
+            Server.PrintToChatAll($"{ChatColors.Red}{Localization.ErrorNoPlayersAvailable}");
             return;
         }
 
@@ -296,7 +291,7 @@ public class DuelGameManager
 
         if (tCount == 0 || ctCount == 0)
         {
-            Server.PrintToChatAll($"{ChatColors.Red}[AuroraDuel] Pas assez de joueurs (minimum 1 T et 1 CT requis).");
+            Server.PrintToChatAll($"{ChatColors.Red}{Localization.ErrorNotEnoughPlayers}");
             return;
         }
 
@@ -304,14 +299,14 @@ public class DuelGameManager
         
         _isDuelInProgress = true;
         
-        // Message dans le chat (général)
-        string chatMessage = Settings.DuelStartChatMessage
+        // General chat message
+        string chatMessage = Localization.DuelStartChatMessage
             .Replace("{comboName}", _currentDuelCombo.ComboName)
             .Replace("{tCount}", tCount.ToString())
             .Replace("{ctCount}", ctCount.ToString());
         Server.PrintToChatAll(chatMessage);
         
-        // Message personnalisé au centre de l'écran pour chaque joueur avec son index de spawn
+        // Personalized center screen message for each player with their spawn index
         foreach (var kvp in spawnIndices)
         {
             var player = kvp.Key;
@@ -321,7 +316,7 @@ public class DuelGameManager
             {
                 string team = player.Team == CsTeam.Terrorist ? "T" : "CT";
                 string centerMessage = FormatCenterMessage(
-                    Settings.DuelStartMessageWithSpawn,
+                    Localization.DuelStartMessageWithSpawn,
                     _currentDuelCombo.ComboName,
                     team,
                     spawnIndex,
@@ -329,14 +324,23 @@ public class DuelGameManager
                     ctCount
                 );
                 player.PrintToCenter(centerMessage);
+                
+                if (player.Team == CsTeam.Terrorist)
+                {
+                    player.PrintToChat($"{ChatColors.LightBlue}{string.Format(Localization.YouAreSpawnT, spawnIndex)}");
+                }
+                else
+                {
+                    player.PrintToChat($"{ChatColors.LightBlue}{string.Format(Localization.YouAreSpawnCT, spawnIndex)}");
+                }
             }
         }
         
-        // Message au centre de l'écran pour les joueurs qui ne participent pas au duel (spectateurs)
+        // Center screen message for players not participating in the duel (spectators)
         foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV && !spawnIndices.ContainsKey(p)))
         {
             string startMessage = FormatCenterMessage(
-                Settings.DuelStartMessage,
+                Localization.DuelStartMessage,
                 _currentDuelCombo.ComboName,
                 null,
                 null,
@@ -348,7 +352,7 @@ public class DuelGameManager
     }
 
     /// <summary>
-    /// Formate un message pour le centre de l'écran en remplaçant les placeholders.
+    /// Formats a message for the center of the screen by replacing placeholders
     /// </summary>
     private string FormatCenterMessage(string template, string comboName, string? team, int? spawnIndex, int tCount, int ctCount)
     {
@@ -374,7 +378,7 @@ public class DuelGameManager
     {
         var spawnIndices = new Dictionary<CCSPlayerController, int>();
         
-        // Obtenir les spawns valides avec leurs index originaux
+        // Get valid spawns with their original indices
         var tSpawnsWithIndex = combo.TSpawns
             .Select((spawn, index) => new { Spawn = spawn, OriginalIndex = index })
             .Where(x => x.Spawn != null && (x.Spawn.PosX != 0 || x.Spawn.PosY != 0 || x.Spawn.PosZ != 0))
@@ -390,13 +394,13 @@ public class DuelGameManager
         var tPlayers = players.Where(p => p.Team == CsTeam.Terrorist).OrderBy(_ => _random.Next()).ToList();
         var ctPlayers = players.Where(p => p.Team == CsTeam.CounterTerrorist).OrderBy(_ => _random.Next()).ToList();
 
-        // Trouver l'index original dans la liste non filtrée pour les T
+        // Find original index in unfiltered list for T
         for (int i = 0; i < tPlayers.Count && i < tSpawnsWithIndex.Count; i++)
         {
             var player = tPlayers[i];
             var spawnData = tSpawnsWithIndex[i];
             
-            // Trouver l'index dans la liste complète (avec les spawns invalides)
+            // Find index in complete list (with invalid spawns)
             int originalIndex = combo.TSpawns.IndexOf(spawnData.Spawn);
             int displayIndex = combo.TSpawns
                 .Take(originalIndex + 1)
@@ -408,13 +412,13 @@ public class DuelGameManager
             spawnIndices[player] = displayIndex;
         }
 
-        // Trouver l'index original dans la liste non filtrée pour les CT
+        // Find original index in unfiltered list for CT
         for (int i = 0; i < ctPlayers.Count && i < ctSpawnsWithIndex.Count; i++)
         {
             var player = ctPlayers[i];
             var spawnData = ctSpawnsWithIndex[i];
             
-            // Trouver l'index dans la liste complète (avec les spawns invalides)
+            // Find index in complete list (with invalid spawns)
             int originalIndex = combo.CTSpawns.IndexOf(spawnData.Spawn);
             int displayIndex = combo.CTSpawns
                 .Take(originalIndex + 1)
@@ -433,13 +437,13 @@ public class DuelGameManager
     {
         player.RemoveWeapons();
 
-        // Arme principale selon l'équipe
+        // Primary weapon based on team
         if (player.Team == CsTeam.Terrorist)
             player.GiveNamedItem(Settings.TerroristPrimaryWeapon);
         else if (player.Team == CsTeam.CounterTerrorist)
             player.GiveNamedItem(Settings.CTerroristPrimaryWeapon);
 
-        // Équipement optionnel selon la config
+        // Optional equipment based on config
         if (Settings.GiveHelmet)
             player.GiveNamedItem(CsItem.KevlarHelmet);
         if (Settings.GiveKevlar)
@@ -456,11 +460,10 @@ public class DuelGameManager
     }
 
     /// <summary>
-    /// Supprime toutes les armes au sol (dropped weapons).
+    /// Removes all weapons on the ground (dropped weapons)
     /// </summary>
     private void RemoveDroppedWeapons()
     {
-        // Liste des préfixes d'armes à nettoyer
         var weaponPrefixes = new[] { "weapon_" };
         
         foreach (var prefix in weaponPrefixes)
@@ -470,18 +473,18 @@ public class DuelGameManager
             {
                 if (entity == null || !entity.IsValid) continue;
                 
-                // Vérifier si l'arme n'a pas de propriétaire (donc au sol)
+                // Check if weapon has no owner (on the ground)
                 if (entity.OwnerEntity == null || !entity.OwnerEntity.IsValid)
                 {
                     entity.Remove();
                 }
             }
         }
-        
-        if (Settings.EnableDebugMessages)
-            Console.WriteLine("[AuroraDuel] Armes au sol supprimées.");
     }
 
+    /// <summary>
+    /// Selects players for the duel based on available spawns and balances teams
+    /// </summary>
     private List<CCSPlayerController> GetDuelPlayers(DuelCombination combo)
     {
         var allPlayers = Utilities.GetPlayers()
@@ -513,6 +516,9 @@ public class DuelGameManager
         return selectedPlayers;
     }
 
+    /// <summary>
+    /// Balances teams by assigning players to T and CT based on available spawns
+    /// </summary>
     private void BalanceTeams(List<CCSPlayerController> players, int maxTSpawns, int maxCTSpawns)
     {
         if (players.Count == 0) return;
