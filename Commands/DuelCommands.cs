@@ -1,5 +1,6 @@
 ﻿using AuroraDuel.Managers;
 using AuroraDuel.Models;
+using AuroraDuel.Utils;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -48,20 +49,12 @@ public class DuelCommands
     {
         if (_settingsManager == null)
         {
-            string message = $"{ChatColors.Red}{Localization.ErrorSettingsManagerNotAvailable}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{Localization.ErrorSettingsManagerNotAvailable}");
             return;
         }
 
         _settingsManager.ReloadSettings();
-        string successMessage = $"{ChatColors.Green}{Localization.SettingsReloadedSuccess}";
-        if (player != null && player.IsValid)
-            player.PrintToChat(successMessage);
-        else
-            info.ReplyToCommand(successMessage);
+        MessageHelper.SendMessage(player, info, $"{ChatColors.Green}{Localization.SettingsReloadedSuccess}");
     }
 
     /// <summary>
@@ -72,11 +65,7 @@ public class DuelCommands
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelMap, "!duel_map")}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.UsageDuelMap, "!duel_map")}");
             return;
         }
 
@@ -84,11 +73,7 @@ public class DuelCommands
 
         if (string.IsNullOrWhiteSpace(newMapName))
         {
-            string message = $"{ChatColors.Red}{Localization.ErrorMapNameEmpty}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{Localization.ErrorMapNameEmpty}");
             return;
         }
 
@@ -121,11 +106,7 @@ public class DuelCommands
             }
             else
             {
-                string message = $"{ChatColors.Red}{string.Format(Localization.ErrorInvalidArgument, "!duel_config [on|off]")}";
-                if (player != null && player.IsValid)
-                    player.PrintToChat(message);
-                else
-                    info.ReplyToCommand(message);
+                MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.ErrorInvalidArgument, "!duel_config [on|off]")}");
                 return;
             }
         }
@@ -136,19 +117,22 @@ public class DuelCommands
             string message = newState 
                 ? $"{ChatColors.LightBlue}{Localization.ConfigModeStatusActive}"
                 : $"{ChatColors.LightBlue}{Localization.ConfigModeStatusInactive}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, message);
         }
         else
         {
-            string message = $"{ChatColors.Red}{Localization.ErrorDuelGameManagerNotAvailable}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{Localization.ErrorDuelGameManagerNotAvailable}");
         }
+    }
+
+    /// <summary>
+    /// Finds a duel combination by name on the current map
+    /// </summary>
+    private DuelCombination? FindCombo(string comboName, string mapName)
+    {
+        return _configManager.CurrentConfig.Combos.FirstOrDefault(c =>
+            c.ComboName.Equals(comboName, StringComparison.OrdinalIgnoreCase) &&
+            c.MapName.Equals(mapName, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -194,11 +178,7 @@ public class DuelCommands
         if (info.ArgCount < 2)
         {
             string usage = isTerrorist ? Localization.UsageAddTSpawn : Localization.UsageAddCTSpawn;
-            string message = $"{ChatColors.Red}{string.Format(usage, info.GetArg(0))}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(usage, info.GetArg(0))}");
             return;
         }
 
@@ -211,9 +191,7 @@ public class DuelCommands
         string comboName = info.GetArg(1).Trim();
         string mapName = Server.MapName;
 
-        var combo = _configManager.CurrentConfig.Combos.FirstOrDefault(c =>
-            c.ComboName.Equals(comboName, StringComparison.OrdinalIgnoreCase) &&
-            c.MapName.Equals(mapName, StringComparison.OrdinalIgnoreCase));
+        var combo = FindCombo(comboName, mapName);
 
         if (combo == null)
         {
@@ -244,7 +222,7 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Supprime un spawn T d'un duel.
+    /// Removes a T spawn from a duel
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_RemoveTSpawn(CCSPlayerController? player, CommandInfo info)
@@ -253,7 +231,7 @@ public class DuelCommands
     }
 
     /// <summary>
-    /// Supprime un spawn CT d'un duel.
+    /// Removes a CT spawn from a duel
     /// </summary>
     [RequiresPermissions("@css/root")]
     public void Command_RemoveCTSpawn(CCSPlayerController? player, CommandInfo info)
@@ -268,11 +246,8 @@ public class DuelCommands
     {
         if (info.ArgCount < 3)
         {
-            string message = $"{ChatColors.Red}[AuroraDuel] {ChatColors.Default}Usage: {ChatColors.Yellow}{info.GetArg(0)} <NomDuel> <index>";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            string usage = isTerrorist ? Localization.UsageRemoveTSpawn : Localization.UsageRemoveCTSpawn;
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(usage, info.GetArg(0))}");
             return;
         }
 
@@ -281,41 +256,25 @@ public class DuelCommands
 
         if (!int.TryParse(info.GetArg(2), out int index) || index < 1)
         {
-            string message = $"{ChatColors.Red}{Localization.ErrorInvalidIndex}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{Localization.ErrorInvalidIndex}");
             return;
         }
 
-        var combo = _configManager.CurrentConfig.Combos.FirstOrDefault(c =>
-            c.ComboName.Equals(comboName, StringComparison.OrdinalIgnoreCase) &&
-            c.MapName.Equals(mapName, StringComparison.OrdinalIgnoreCase));
+        var combo = FindCombo(comboName, mapName);
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}");
             return;
         }
 
         var spawns = isTerrorist ? combo.TSpawns : combo.CTSpawns;
-        var validSpawns = spawns
-            .Where(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0))
-            .ToList();
+        var validSpawns = SpawnHelper.GetValidSpawns(spawns);
 
         if (index > validSpawns.Count)
         {
             string teamName = isTerrorist ? "T" : "CT";
-            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorIndexOutOfRange, index, validSpawns.Count, teamName)}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.ErrorIndexOutOfRange, index, validSpawns.Count, teamName)}");
             return;
         }
 
@@ -325,10 +284,7 @@ public class DuelCommands
         string successMessage = isTerrorist
             ? $"{ChatColors.Green}{string.Format(Localization.TSpawnRemoved, index, comboName)}"
             : $"{ChatColors.Green}{string.Format(Localization.CTSpawnRemoved, index, comboName)}";
-        if (player != null && player.IsValid)
-            player.PrintToChat(successMessage);
-        else
-            info.ReplyToCommand(successMessage);
+        MessageHelper.SendMessage(player, info, successMessage);
 
         _configManager.SaveConfig();
     }
@@ -341,37 +297,23 @@ public class DuelCommands
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelInfo, "!duel_info")}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.UsageDuelInfo, "!duel_info")}");
             return;
         }
 
         string comboName = info.GetArg(1).Trim();
         string mapName = Server.MapName;
 
-        var combo = _configManager.CurrentConfig.Combos.FirstOrDefault(c =>
-            c.ComboName.Equals(comboName, StringComparison.OrdinalIgnoreCase) &&
-            c.MapName.Equals(mapName, StringComparison.OrdinalIgnoreCase));
+        var combo = FindCombo(comboName, mapName);
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}");
             return;
         }
 
-        var validTSpawns = combo.TSpawns
-            .Where(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0))
-            .ToList();
-        var validCTSpawns = combo.CTSpawns
-            .Where(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0))
-            .ToList();
+        var validTSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns);
+        var validCTSpawns = SpawnHelper.GetValidSpawns(combo.CTSpawns);
 
         if (player != null && player.IsValid)
         {
@@ -443,11 +385,7 @@ public class DuelCommands
 
         if (duelsOnMap.Count == 0)
         {
-            string message = $"{ChatColors.Yellow}{string.Format(Localization.ErrorNoDuelsOnMap, currentMap)}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Yellow}{string.Format(Localization.ErrorNoDuelsOnMap, currentMap)}");
             return;
         }
 
@@ -457,10 +395,8 @@ public class DuelCommands
             
             foreach (var duel in duelsOnMap)
             {
-                int tSpawns = duel.TSpawns
-                    .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
-                int ctSpawns = duel.CTSpawns
-                    .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
+                int tSpawns = SpawnHelper.GetValidSpawns(duel.TSpawns).Count;
+                int ctSpawns = SpawnHelper.GetValidSpawns(duel.CTSpawns).Count;
                 
                 player.PrintToChat($"  {ChatColors.Green}• {ChatColors.Yellow}{string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns)}");
             }
@@ -469,10 +405,8 @@ public class DuelCommands
         {
             foreach (var duel in duelsOnMap)
             {
-                int tSpawns = duel.TSpawns
-                    .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
-                int ctSpawns = duel.CTSpawns
-                    .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
+                int tSpawns = SpawnHelper.GetValidSpawns(duel.TSpawns).Count;
+                int ctSpawns = SpawnHelper.GetValidSpawns(duel.CTSpawns).Count;
                 
                 Console.WriteLine(string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns));
             }
@@ -487,39 +421,25 @@ public class DuelCommands
     {
         if (info.ArgCount < 2)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.UsageDuelDelete, "!duel_delete")}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.UsageDuelDelete, "!duel_delete")}");
             return;
         }
 
         string comboName = info.GetArg(1).Trim();
         string mapName = Server.MapName;
 
-        var combo = _configManager.CurrentConfig.Combos.FirstOrDefault(c =>
-            c.ComboName.Equals(comboName, StringComparison.OrdinalIgnoreCase) &&
-            c.MapName.Equals(mapName, StringComparison.OrdinalIgnoreCase));
+        var combo = FindCombo(comboName, mapName);
 
         if (combo == null)
         {
-            string message = $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}";
-            if (player != null && player.IsValid)
-                player.PrintToChat(message);
-            else
-                info.ReplyToCommand(message);
+            MessageHelper.SendMessage(player, info, $"{ChatColors.Red}{string.Format(Localization.ErrorDuelNotFound, comboName, mapName)}");
             return;
         }
 
         _configManager.CurrentConfig.Combos.Remove(combo);
         _configManager.SaveConfig();
 
-        string successMessage = $"{ChatColors.Green}{string.Format(Localization.DuelDeleted, comboName)}";
-        if (player != null && player.IsValid)
-            player.PrintToChat(successMessage);
-        else
-            info.ReplyToCommand(successMessage);
+        MessageHelper.SendMessage(player, info, $"{ChatColors.Green}{string.Format(Localization.DuelDeleted, comboName)}");
     }
 
     /// <summary>

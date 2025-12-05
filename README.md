@@ -193,6 +193,9 @@ AuroraDuel/
 │   ├── DuelSpawn.cs           # Data models (DuelCombination, SpawnPoint)
 │   ├── PluginSettings.cs     # Plugin settings model
 │   └── Localization.cs       # Localization model
+├── Utils/
+│   ├── SpawnHelper.cs         # Utility functions for spawn validation
+│   └── MessageHelper.cs      # Utility functions for message handling
 └── configs/
     └── duel_settings.cfg     # Server configuration
 ```
@@ -313,3 +316,13 @@ For any questions or issues, open an issue on the GitHub repository.
 **Version**: 1.0.0  
 **Author**: AuroraDuel Team  
 **Compatibility**: Counter-Strike 2, CounterStrikeSharp 1.0.347+
+
+## 🔄 Recent Improvements
+
+The codebase has been refactored and optimized for better maintainability:
+
+- **Code factorization**: Common logic extracted into utility classes (`SpawnHelper`, `MessageHelper`)
+- **Reduced duplication**: Eliminated repetitive code patterns across commands and game management
+- **Improved structure**: Better separation of concerns with utility classes
+- **Code cleanup**: Removed unnecessary code and simplified complex methods
+- **Better maintainability**: Easier to extend and modify with centralized helper functions

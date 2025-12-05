@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 using AuroraDuel.Models;
+using AuroraDuel.Utils;
 
 namespace AuroraDuel.Managers;
 
@@ -21,6 +22,7 @@ public class DuelGameManager
     private List<CCSPlayerController>? _currentDuelPlayers = null;
     private bool _isDuelInProgress = false;
     private bool _isGameStarted = false;
+    private bool _isSettingUpDuel = false; // Flag to prevent OnPlayerTeam from triggering during duel setup
 
     public static bool IsConfigModeActive { get; private set; } = false;
 
@@ -124,6 +126,32 @@ public class DuelGameManager
                 LoadDuelConfigs(_pluginInstance);
                 Server.ExecuteCommand("mp_restartgame 1");
             });
+        }
+        else if (_isGameStarted && joinsPlayableTeam)
+        {
+            // Ignore team changes during duel setup to prevent infinite loops
+            if (_isSettingUpDuel) return HookResult.Continue;
+            
+            // Player joined a team while game is already started
+            // Check if we need to start a duel (no duel in progress and valid round)
+            if (!_isDuelInProgress && IsValidGameRound())
+            {
+                _pluginInstance.AddTimer(1.0f, () =>
+                {
+                    // Respawn all dead players in T/CT teams
+                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV && 
+                        (p.Team == CsTeam.Terrorist || p.Team == CsTeam.CounterTerrorist)))
+                    {
+                        if (!p.PawnIsAlive)
+                        {
+                            p.Respawn();
+                        }
+                    }
+                    
+                    // Start a duel after respawning
+                    _pluginInstance.AddTimer(0.5f, StartNextDuel);
+                });
+            }
         }
         else if (_isGameStarted && !joinsPlayableTeam)
         {
@@ -263,6 +291,7 @@ public class DuelGameManager
         if (!_isGameStarted) return;
         
         _isDuelInProgress = false;
+        _isSettingUpDuel = true; // Set flag to prevent OnPlayerTeam from triggering during setup
 
         RemoveDroppedWeapons();
 
@@ -274,6 +303,7 @@ public class DuelGameManager
         if (availableCombos.Count == 0)
         {
             Server.PrintToChatAll($"{ChatColors.Red}{string.Format(Localization.ErrorNoCombinationsForMap, currentMapName)}");
+            _isSettingUpDuel = false;
             return;
         }
 
@@ -283,6 +313,7 @@ public class DuelGameManager
         if (_currentDuelPlayers.Count == 0)
         {
             Server.PrintToChatAll($"{ChatColors.Red}{Localization.ErrorNoPlayersAvailable}");
+            _isSettingUpDuel = false;
             return;
         }
 
@@ -292,12 +323,14 @@ public class DuelGameManager
         if (tCount == 0 || ctCount == 0)
         {
             Server.PrintToChatAll($"{ChatColors.Red}{Localization.ErrorNotEnoughPlayers}");
+            _isSettingUpDuel = false;
             return;
         }
 
         var spawnIndices = RespawnAndTeleportPlayers(_currentDuelPlayers, _currentDuelCombo);
         
         _isDuelInProgress = true;
+        _isSettingUpDuel = false; // Clear flag after duel setup is complete
         
         // General chat message
         string chatMessage = Localization.DuelStartChatMessage
@@ -377,60 +410,116 @@ public class DuelGameManager
     private Dictionary<CCSPlayerController, int> RespawnAndTeleportPlayers(List<CCSPlayerController> players, DuelCombination combo)
     {
         var spawnIndices = new Dictionary<CCSPlayerController, int>();
-        
-        // Get valid spawns with their original indices
-        var tSpawnsWithIndex = combo.TSpawns
-            .Select((spawn, index) => new { Spawn = spawn, OriginalIndex = index })
-            .Where(x => x.Spawn != null && (x.Spawn.PosX != 0 || x.Spawn.PosY != 0 || x.Spawn.PosZ != 0))
-            .OrderBy(_ => _random.Next())
-            .ToList();
-
-        var ctSpawnsWithIndex = combo.CTSpawns
-            .Select((spawn, index) => new { Spawn = spawn, OriginalIndex = index })
-            .Where(x => x.Spawn != null && (x.Spawn.PosX != 0 || x.Spawn.PosY != 0 || x.Spawn.PosZ != 0))
-            .OrderBy(_ => _random.Next())
-            .ToList();
+    
+        // Get valid spawns shuffled
+        var validTSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns).OrderBy(_ => _random.Next()).ToList();
+        var validCTSpawns = SpawnHelper.GetValidSpawns(combo.CTSpawns).OrderBy(_ => _random.Next()).ToList();
 
         var tPlayers = players.Where(p => p.Team == CsTeam.Terrorist).OrderBy(_ => _random.Next()).ToList();
         var ctPlayers = players.Where(p => p.Team == CsTeam.CounterTerrorist).OrderBy(_ => _random.Next()).ToList();
 
-        // Find original index in unfiltered list for T
-        for (int i = 0; i < tPlayers.Count && i < tSpawnsWithIndex.Count; i++)
-        {
-            var player = tPlayers[i];
-            var spawnData = tSpawnsWithIndex[i];
+        // Process T players
+        ProcessTeamPlayers(tPlayers, validTSpawns, combo.TSpawns, spawnIndices);
+        
+        // Process CT players
+        ProcessTeamPlayers(ctPlayers, validCTSpawns, combo.CTSpawns, spawnIndices);
             
-            // Find index in complete list (with invalid spawns)
-            int originalIndex = combo.TSpawns.IndexOf(spawnData.Spawn);
-            int displayIndex = combo.TSpawns
-                .Take(originalIndex + 1)
-                .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
-            
-            if (!player.PawnIsAlive) player.Respawn();
-            GiveDuelEquipment(player);
-            TeleportManager.TeleportPlayerToSpawn(player, spawnData.Spawn);
-            spawnIndices[player] = displayIndex;
-        }
-
-        // Find original index in unfiltered list for CT
-        for (int i = 0; i < ctPlayers.Count && i < ctSpawnsWithIndex.Count; i++)
-        {
-            var player = ctPlayers[i];
-            var spawnData = ctSpawnsWithIndex[i];
-            
-            // Find index in complete list (with invalid spawns)
-            int originalIndex = combo.CTSpawns.IndexOf(spawnData.Spawn);
-            int displayIndex = combo.CTSpawns
-                .Take(originalIndex + 1)
-                .Count(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0));
-            
-            if (!player.PawnIsAlive) player.Respawn();
-            GiveDuelEquipment(player);
-            TeleportManager.TeleportPlayerToSpawn(player, spawnData.Spawn);
-            spawnIndices[player] = displayIndex;
-        }
+        // Teleport all players to their spawns
+        TeleportPlayersToSpawns(spawnIndices, combo);
         
         return spawnIndices;
+    }
+
+    /// <summary>
+    /// Processes players for a team (T or CT) - respawns and assigns spawn indices
+    /// </summary>
+    private void ProcessTeamPlayers(
+        List<CCSPlayerController> teamPlayers, 
+        List<Models.SpawnPoint> validSpawns, 
+        List<Models.SpawnPoint> allSpawns,
+        Dictionary<CCSPlayerController, int> spawnIndices)
+    {
+        for (int i = 0; i < teamPlayers.Count && i < validSpawns.Count; i++)
+        {
+            var player = teamPlayers[i];
+            var spawn = validSpawns[i];
+            
+            int displayIndex = SpawnHelper.GetDisplayIndex(spawn, allSpawns);
+            
+            if (!player.PawnIsAlive) 
+            {
+                player.Respawn();
+                _pluginInstance.AddTimer(0.05f, () =>
+                {
+                    if (player.IsValid && !player.IsBot && !player.IsHLTV)
+                    {
+                        RestorePlayerHealth(player);
+                        GiveDuelEquipment(player);
+                    }
+                });
+            }
+            else
+            {
+                UpdatePlayerModel(player);
+            }
+            spawnIndices[player] = displayIndex;
+        }
+    }
+
+    /// <summary>
+    /// Teleports players to their assigned spawn points
+    /// </summary>
+    private void TeleportPlayersToSpawns(Dictionary<CCSPlayerController, int> spawnIndices, DuelCombination combo)
+    {
+        foreach (var kvp in spawnIndices)
+        {
+            var player = kvp.Key;
+            var spawnIndex = kvp.Value;
+            
+            if (!player.IsValid || player.IsBot || player.IsHLTV) continue;
+            
+            Models.SpawnPoint? targetSpawn = null;
+            var spawnsToSearch = player.Team == CsTeam.Terrorist ? combo.TSpawns : combo.CTSpawns;
+            var validSpawns = SpawnHelper.GetValidSpawns(spawnsToSearch);
+            
+            if (spawnIndex > 0 && spawnIndex <= validSpawns.Count)
+            {
+                targetSpawn = validSpawns[spawnIndex - 1];
+            }
+            
+            if (targetSpawn != null)
+            {
+                TeleportManager.TeleportPlayerToSpawn(player, targetSpawn);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Restores player health and armor to full
+    /// </summary>
+    private void RestorePlayerHealth(CCSPlayerController player)
+    {
+        if (player == null || !player.IsValid || player.PlayerPawn?.Value == null) return;
+
+        var pawn = player.PlayerPawn.Value;
+        if (!pawn.IsValid) return;
+
+        // Set health to 100 (restore even if player is already alive)
+        pawn.Health = 100;
+        pawn.MaxHealth = 100;
+
+        // Restore armor if kevlar is given
+        if (Settings.GiveKevlar)
+        {
+            pawn.ArmorValue = 100; // Full armor
+        }
+        else
+        {
+            pawn.ArmorValue = 0;
+        }
+        
+        // Ensure CT players never have the bomb (in case game gives it automatically)
+        RemoveBombFromPlayer(player);
     }
 
     private void GiveDuelEquipment(CCSPlayerController player)
@@ -457,6 +546,67 @@ public class DuelGameManager
             player.GiveNamedItem(CsItem.HE);
         if (Settings.GiveFlashbang)
             player.GiveNamedItem(CsItem.Flashbang);
+        
+        // Ensure CT players never have the bomb
+        RemoveBombFromPlayer(player);
+    }
+    
+    /// <summary>
+    /// Removes C4 bomb from CT players (bomb should only be on T players)
+    /// </summary>
+    private void RemoveBombFromPlayer(CCSPlayerController player)
+    {
+        if (player == null || !player.IsValid || player.PlayerPawn?.Value == null) return;
+        
+        var pawn = player.PlayerPawn.Value;
+        if (!pawn.IsValid || pawn.WeaponServices == null) return;
+        
+        // Remove C4 bomb if player has it
+        var weapons = pawn.WeaponServices.MyWeapons;
+        if (weapons == null) return;
+        
+        foreach (var weaponHandle in weapons)
+        {
+            if (weaponHandle == null || !weaponHandle.IsValid) continue;
+            
+            var weapon = weaponHandle.Value;
+            if (weapon == null || !weapon.IsValid) continue;
+            
+            // Check if it's a C4 bomb
+            if (weapon.DesignerName.Contains("c4", StringComparison.OrdinalIgnoreCase))
+            {
+                weapon.Remove();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates player model to match their current team by forcing a model refresh
+    /// For alive players, we use ChangeTeam which kills and respawns them instantly to update the model
+    /// </summary>
+    private void UpdatePlayerModel(CCSPlayerController player)
+    {
+        if (player == null || !player.IsValid || player.PlayerPawn?.Value == null) return;
+
+        // If player is alive and on a playable team, we need to force model update
+        // The only reliable way is to use ChangeTeam which will kill and respawn the player
+        // This is almost instantaneous and the player won't notice
+        if (player.PawnIsAlive && (player.Team == CsTeam.Terrorist || player.Team == CsTeam.CounterTerrorist))
+        {
+            var currentTeam = player.Team;
+            // ChangeTeam kills the player, then we respawn immediately
+            player.ChangeTeam(currentTeam);
+            if (player.IsValid && !player.IsBot && !player.IsHLTV)
+            {
+                player.Respawn();
+                if (player.IsValid && !player.IsBot && !player.IsHLTV)
+                {
+                    RestorePlayerHealth(player);
+                }
+            }
+        }
+
+        GiveDuelEquipment(player);
     }
 
     /// <summary>
@@ -464,20 +614,15 @@ public class DuelGameManager
     /// </summary>
     private void RemoveDroppedWeapons()
     {
-        var weaponPrefixes = new[] { "weapon_" };
-        
-        foreach (var prefix in weaponPrefixes)
+        var entities = Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("weapon_");
+        foreach (var entity in entities)
         {
-            var entities = Utilities.FindAllEntitiesByDesignerName<CBaseEntity>(prefix);
-            foreach (var entity in entities)
+            if (entity == null || !entity.IsValid) continue;
+            
+            // Check if weapon has no owner (on the ground)
+            if (entity.OwnerEntity == null || !entity.OwnerEntity.IsValid)
             {
-                if (entity == null || !entity.IsValid) continue;
-                
-                // Check if weapon has no owner (on the ground)
-                if (entity.OwnerEntity == null || !entity.OwnerEntity.IsValid)
-                {
-                    entity.Remove();
-                }
+                entity.Remove();
             }
         }
     }
@@ -491,12 +636,8 @@ public class DuelGameManager
             .Where(p => p.IsValid && !p.IsHLTV)
             .ToList();
 
-        var tSpawns = combo.TSpawns
-            .Where(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0))
-            .ToList();
-        var ctSpawns = combo.CTSpawns
-            .Where(s => s != null && (s.PosX != 0 || s.PosY != 0 || s.PosZ != 0))
-            .ToList();
+        var tSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns);
+        var ctSpawns = SpawnHelper.GetValidSpawns(combo.CTSpawns);
 
         int maxTSpawns = tSpawns.Count;
         int maxCTSpawns = ctSpawns.Count;

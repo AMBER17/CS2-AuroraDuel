@@ -115,5 +115,6 @@ public class Localization
     /// Placeholders: {winnerTeam}
     /// </summary>
     public string DuelWinMessage { get; set; } = "The {winnerTeam} have won!";
+    
 }
 
