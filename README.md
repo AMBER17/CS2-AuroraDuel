@@ -138,7 +138,6 @@ All commands require `@css/root` permission.
 To create a 2v2 duel on "long_A":
 ```
 !duel_config on
-!duel_map de_dust2
 [Position yourself at T1 position] !duel_add_t long_A
 [Position yourself at T2 position] !duel_add_t long_A
 [Position yourself at CT1 position] !duel_add_ct long_A
