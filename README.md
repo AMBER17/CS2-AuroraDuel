@@ -46,19 +46,80 @@ Main settings include:
 
 ### Plugin Settings File (`configs/plugins/AuroraDuel/settings.json`)
 
-This file is automatically created on first launch. It contains only gameplay configuration:
+This file is automatically created on first launch. It contains gameplay configuration:
+
+#### Basic Settings
 
 - **DelayBeforeNextDuel**: Delay before next duel (default: 1.0s)
 - **DelayAfterRoundStart**: Delay after round start (default: 2.0s)
 - **EnableDebugMessages**: Enable/disable debug messages in console (default: true)
 - **HideTeamChangeMessages**: Hide team change messages in chat (default: true)
+
+#### Loadout Scenarios (Advanced Armament System)
+
+The plugin uses a **probabilistic loadout system** where different equipment scenarios can be configured with probability percentages. Each duel, a random scenario is selected based on these probabilities.
+
+**LoadoutScenarios** is an array of loadout scenario objects, each containing:
+
+- **Name**: Scenario identifier (e.g., "full_buy", "half_buy", "gun")
+- **Probability**: Percentage chance (0-100) for this scenario to be selected (all probabilities should sum to 100)
+- **TerroristPrimaryWeapon**: Primary weapon for T team (e.g., "weapon_ak47", "weapon_galil", or `null` for no primary)
+- **CTerroristPrimaryWeapon**: Primary weapon for CT team (e.g., "weapon_m4a1_silencer", "weapon_famas", or `null` for no primary)
+- **SecondaryWeapon**: Secondary weapon (e.g., "weapon_deagle", "weapon_p250", "weapon_glock", "weapon_usp_silencer", or `null` for default team pistol)
 - **GiveKevlar**: Give kevlar vest (default: true)
 - **GiveHelmet**: Give helmet (default: true)
-- **GiveDeagle**: Give Deagle (default: true)
-- **GiveHEGrenade**: Give HE grenade (default: true)
-- **GiveFlashbang**: Give flashbang (default: true)
-- **TerroristPrimaryWeapon**: T primary weapon (default: "weapon_ak47")
-- **CTerroristPrimaryWeapon**: CT primary weapon (default: "weapon_m4a1_silencer")
+- **GiveHEGrenade**: Give HE grenade (default: false)
+- **GiveFlashbang**: Give flashbang (default: false)
+- **GiveSmoke**: Give smoke grenade (default: false)
+- **GiveMolotov**: Give molotov/incendiary grenade (default: false)
+
+**Default Configuration Example:**
+```json
+{
+  "LoadoutScenarios": [
+    {
+      "Name": "full_buy",
+      "Probability": 70,
+      "TerroristPrimaryWeapon": "weapon_ak47",
+      "CTerroristPrimaryWeapon": "weapon_m4a1_silencer",
+      "SecondaryWeapon": "weapon_deagle",
+      "GiveKevlar": true,
+      "GiveHelmet": true,
+      "GiveHEGrenade": true,
+      "GiveFlashbang": true
+    },
+    {
+      "Name": "half_buy",
+      "Probability": 20,
+      "TerroristPrimaryWeapon": "weapon_galil",
+      "CTerroristPrimaryWeapon": "weapon_famas",
+      "SecondaryWeapon": "weapon_p250",
+      "GiveKevlar": true,
+      "GiveHelmet": false,
+      "GiveHEGrenade": true,
+      "GiveFlashbang": false
+    },
+    {
+      "Name": "gun",
+      "Probability": 10,
+      "TerroristPrimaryWeapon": null,
+      "CTerroristPrimaryWeapon": null,
+      "SecondaryWeapon": null,
+      "GiveKevlar": true,
+      "GiveHelmet": false,
+      "GiveHEGrenade": false,
+      "GiveFlashbang": false
+    }
+  ]
+}
+```
+
+This configuration means:
+- **70% chance** of getting full buy (AK/M4, Deagle, Kevlar+Helmet, HE, Flashbang)
+- **20% chance** of getting half buy (Galil/FAMAS, P250, Kevlar only, HE)
+- **10% chance** of getting pistol only (Glock/USP, Kevlar only)
+
+**Note**: If probabilities don't sum to 100, they will be automatically normalized. If `SecondaryWeapon` is `null` and no primary weapon is specified, players will receive their default team pistol (Glock for T, USP for CT).
 
 ### Localization File (`configs/plugins/AuroraDuel/localization.json`)
 
@@ -157,7 +218,7 @@ To create a 2v2 duel on "long_A":
 - Random selection of a duel among those available on the map
 - Automatic team balancing based on available spawns
 - Automatic player teleportation to configured positions
-- Automatic equipment assignment (weapons, armor, grenades)
+- **Probabilistic loadout system**: Random equipment assignment based on configured scenarios and probabilities
 - Automatic cleanup of weapons on the ground between duels
 
 ### Infinite Round System
@@ -187,11 +248,13 @@ AuroraDuel/
 │   ├── DuelGameManager.cs    # Main game logic
 │   ├── SettingsManager.cs    # Manages settings
 │   ├── LocalizationManager.cs # Manages translations
-│   └── TeleportManager.cs    # Handles teleportation
+│   ├── TeleportManager.cs    # Handles teleportation
+│   └── LoadoutManager.cs     # Manages loadout scenarios and probabilities
 ├── Models/
 │   ├── DuelSpawn.cs           # Data models (DuelCombination, SpawnPoint)
 │   ├── PluginSettings.cs     # Plugin settings model
-│   └── Localization.cs       # Localization model
+│   ├── Localization.cs       # Localization model
+│   └── LoadoutScenario.cs    # Loadout scenario model
 ├── Utils/
 │   ├── SpawnHelper.cs         # Utility functions for spawn validation
 │   └── MessageHelper.cs      # Utility functions for message handling
@@ -318,6 +381,8 @@ For any questions or issues, open an issue on the GitHub repository.
 
 ## 🔄 Recent Improvements
 
+### Code Refactoring
+
 The codebase has been refactored and optimized for better maintainability:
 
 - **Code factorization**: Common logic extracted into utility classes (`SpawnHelper`, `MessageHelper`)
@@ -325,3 +390,13 @@ The codebase has been refactored and optimized for better maintainability:
 - **Improved structure**: Better separation of concerns with utility classes
 - **Code cleanup**: Removed unnecessary code and simplified complex methods
 - **Better maintainability**: Easier to extend and modify with centralized helper functions
+
+### Advanced Loadout System
+
+A new probabilistic loadout system has been implemented:
+
+- **Configurable scenarios**: Create custom loadout scenarios (full buy, half buy, pistol only, etc.)
+- **Probability-based selection**: Each scenario has a configurable probability percentage
+- **Flexible configuration**: Configure weapons, armor, and grenades per scenario
+- **Automatic normalization**: Probabilities are automatically normalized if they don't sum to 100
+- **Team-specific weapons**: Different primary weapons for T and CT teams per scenario

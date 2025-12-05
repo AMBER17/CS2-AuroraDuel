@@ -1,4 +1,5 @@
-﻿using CounterStrikeSharp.API.Core;
+﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using AuroraDuel.Models;
 
@@ -10,7 +11,7 @@ namespace AuroraDuel.Managers;
 public static class TeleportManager
 {
     /// <summary>
-    /// Teleports a player to the specified spawn point
+    /// Teleports a player to the specified spawn point and resets velocity
     /// </summary>
     public static void TeleportPlayerToSpawn(CCSPlayerController player, Models.SpawnPoint spawn)
     {
@@ -18,8 +19,11 @@ public static class TeleportManager
 
         var position = new Vector(spawn.PosX, spawn.PosY, spawn.PosZ);
         var angles = new QAngle(0, spawn.AngleYaw, 0);
+        var zeroVelocity = new Vector(0, 0, 0);
 
         var pawn = player.PlayerPawn.Value;
-        pawn.Teleport(position, angles, new Vector(0, 0, 0));
+        
+        // Teleport with zero velocity to prevent sliding
+        pawn.Teleport(position, angles, zeroVelocity);
     }
 }

@@ -16,10 +16,12 @@ public class DuelGameManager
     private readonly ConfigManager _configManager;
     private readonly SettingsManager _settingsManager;
     private readonly LocalizationManager? _localizationManager;
+    private LoadoutManager _loadoutManager;
     private readonly Random _random = new Random();
     private readonly BasePlugin _pluginInstance;
     private DuelCombination? _currentDuelCombo = null;
     private List<CCSPlayerController>? _currentDuelPlayers = null;
+    private LoadoutScenario? _currentDuelLoadout = null; // Loadout selected for the current duel
     private bool _isDuelInProgress = false;
     private bool _isGameStarted = false;
     private bool _isSettingUpDuel = false; // Flag to prevent OnPlayerTeam from triggering during duel setup
@@ -45,6 +47,15 @@ public class DuelGameManager
         _settingsManager = settingsManager;
         _localizationManager = localizationManager;
         _pluginInstance = pluginInstance;
+        _loadoutManager = new LoadoutManager(settingsManager.Settings.LoadoutScenarios);
+    }
+
+    /// <summary>
+    /// Updates the loadout manager with new settings (called when settings are reloaded)
+    /// </summary>
+    public void ReloadLoadoutManager()
+    {
+        _loadoutManager = new LoadoutManager(_settingsManager.Settings.LoadoutScenarios);
     }
 
     public void SetConfigMode(bool isActive)
@@ -95,6 +106,7 @@ public class DuelGameManager
         _isDuelInProgress = false;
         _currentDuelCombo = null;
         _currentDuelPlayers = null;
+        _currentDuelLoadout = null;
     }
 
     public HookResult OnPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
@@ -295,6 +307,13 @@ public class DuelGameManager
 
         RemoveDroppedWeapons();
 
+        // Select a random loadout scenario for this duel (same for all players)
+        _currentDuelLoadout = _loadoutManager.SelectRandomScenario();
+        if (Settings.EnableDebugMessages)
+        {
+            Console.WriteLine($"[AuroraDuel] Duel loadout selected: {_currentDuelLoadout.Name} (probability: {_currentDuelLoadout.Probability}%)");
+        }
+
         var currentMapName = Server.MapName;
         var availableCombos = _configManager.CurrentConfig.Combos
             .Where(c => c.MapName.Equals(currentMapName, StringComparison.OrdinalIgnoreCase))
@@ -449,7 +468,7 @@ public class DuelGameManager
             if (!player.PawnIsAlive) 
             {
                 player.Respawn();
-                _pluginInstance.AddTimer(0.05f, () =>
+                Server.NextFrame(() =>
                 {
                     if (player.IsValid && !player.IsBot && !player.IsHLTV)
                     {
@@ -489,7 +508,15 @@ public class DuelGameManager
             
             if (targetSpawn != null)
             {
-                TeleportManager.TeleportPlayerToSpawn(player, targetSpawn);
+                // Use NextFrame to ensure player is fully respawned before teleporting
+                // This prevents sliding issues
+                Server.NextFrame(() =>
+                {
+                    if (player.IsValid && !player.IsBot && !player.IsHLTV && player.PlayerPawn?.Value != null)
+                    {
+                        TeleportManager.TeleportPlayerToSpawn(player, targetSpawn);
+                    }
+                });
             }
         }
     }
@@ -508,77 +535,39 @@ public class DuelGameManager
         pawn.Health = 100;
         pawn.MaxHealth = 100;
 
-        // Restore armor if kevlar is given
-        if (Settings.GiveKevlar)
-        {
-            pawn.ArmorValue = 100; // Full armor
-        }
-        else
-        {
-            pawn.ArmorValue = 0;
-        }
-        
-        // Ensure CT players never have the bomb (in case game gives it automatically)
-        RemoveBombFromPlayer(player);
+        // Armor will be set by the loadout system
+        pawn.ArmorValue = 100;
     }
 
+    /// <summary>
+    /// Gives equipment to a player based on the current duel's loadout scenario
+    /// </summary>
     private void GiveDuelEquipment(CCSPlayerController player)
     {
-        player.RemoveWeapons();
+        if (player == null || !player.IsValid) return;
 
-        // Primary weapon based on team
-        if (player.Team == CsTeam.Terrorist)
-            player.GiveNamedItem(Settings.TerroristPrimaryWeapon);
-        else if (player.Team == CsTeam.CounterTerrorist)
-            player.GiveNamedItem(Settings.CTerroristPrimaryWeapon);
-
-        // Optional equipment based on config
-        if (Settings.GiveHelmet)
-            player.GiveNamedItem(CsItem.KevlarHelmet);
-        if (Settings.GiveKevlar)
-            player.GiveNamedItem(CsItem.Kevlar);
-        
-        player.GiveNamedItem(CsItem.Knife);
-        
-        if (Settings.GiveDeagle)
-            player.GiveNamedItem(CsItem.Deagle);
-        if (Settings.GiveHEGrenade)
-            player.GiveNamedItem(CsItem.HE);
-        if (Settings.GiveFlashbang)
-            player.GiveNamedItem(CsItem.Flashbang);
-        
-        // Ensure CT players never have the bomb
-        RemoveBombFromPlayer(player);
-    }
-    
-    /// <summary>
-    /// Removes C4 bomb from CT players (bomb should only be on T players)
-    /// </summary>
-    private void RemoveBombFromPlayer(CCSPlayerController player)
-    {
-        if (player == null || !player.IsValid || player.PlayerPawn?.Value == null) return;
-        
-        var pawn = player.PlayerPawn.Value;
-        if (!pawn.IsValid || pawn.WeaponServices == null) return;
-        
-        // Remove C4 bomb if player has it
-        var weapons = pawn.WeaponServices.MyWeapons;
-        if (weapons == null) return;
-        
-        foreach (var weaponHandle in weapons)
+        if (_currentDuelLoadout == null)
         {
-            if (weaponHandle == null || !weaponHandle.IsValid) continue;
+            Console.WriteLine($"[AuroraDuel] Warning: No loadout selected for current duel, selecting random for player {player.PlayerName}");
+            _currentDuelLoadout = _loadoutManager.SelectRandomScenario();
+        }
+
+        try
+        {
+            // Use silent mode to avoid repetitive logs for each player
+            _loadoutManager.ApplyLoadout(player, _currentDuelLoadout, silent: true);
             
-            var weapon = weaponHandle.Value;
-            if (weapon == null || !weapon.IsValid) continue;
-            
-            // Check if it's a C4 bomb
-            if (weapon.DesignerName.Contains("c4", StringComparison.OrdinalIgnoreCase))
+            if (Settings.EnableDebugMessages)
             {
-                weapon.Remove();
+                Console.WriteLine($"[AuroraDuel] Loadout '{_currentDuelLoadout.Name}' applied to player {player.PlayerName} (Team: {player.Team})");
             }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AuroraDuel] Error applying loadout to player {player.PlayerName}: {ex.Message}");
+        }
     }
+    
 
     /// <summary>
     /// Updates player model to match their current team by forcing a model refresh

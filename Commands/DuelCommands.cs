@@ -54,6 +54,13 @@ public class DuelCommands
         }
 
         _settingsManager.ReloadSettings();
+        
+        // Update loadout manager with new settings
+        if (_duelGameManager != null)
+        {
+            _duelGameManager.ReloadLoadoutManager();
+        }
+        
         MessageHelper.SendMessage(player, info, $"{ChatColors.Green}{Localization.SettingsReloadedSuccess}");
     }
 

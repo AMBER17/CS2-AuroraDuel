@@ -59,5 +59,48 @@ public class PluginSettings
     /// Primary weapon for Counter-Terrorists (e.g., "weapon_m4a1_silencer")
     /// </summary>
     public string CTerroristPrimaryWeapon { get; set; } = "weapon_m4a1_silencer";
+
+    /// <summary>
+    /// Loadout scenarios with probabilities (sum should be 100)
+    /// </summary>
+    public List<LoadoutScenario> LoadoutScenarios { get; set; } = new List<LoadoutScenario>
+    {
+        new LoadoutScenario
+        {
+            Name = "full_buy",
+            Probability = 70,
+            TerroristPrimaryWeapon = "weapon_ak47",
+            CTerroristPrimaryWeapon = "weapon_m4a1_silencer",
+            SecondaryWeapon = "weapon_deagle",
+            GiveKevlar = true,
+            GiveHelmet = true,
+            GiveHEGrenade = true,
+            GiveFlashbang = true
+        },
+        new LoadoutScenario
+        {
+            Name = "half_buy",
+            Probability = 20,
+            TerroristPrimaryWeapon = "weapon_mac10",
+            CTerroristPrimaryWeapon = "weapon_mp9",
+            SecondaryWeapon = null,
+            GiveKevlar = true,
+            GiveHelmet = true,
+            GiveHEGrenade = true,
+            GiveFlashbang = false
+        },
+        new LoadoutScenario
+        {
+            Name = "gun",
+            Probability = 10,
+            TerroristPrimaryWeapon = null,
+            CTerroristPrimaryWeapon = null,
+            SecondaryWeapon = null, // Will use default team pistol
+            GiveKevlar = true,
+            GiveHelmet = false,
+            GiveHEGrenade = false,
+            GiveFlashbang = false
+        }
+    };
 }
 
