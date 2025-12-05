@@ -11,7 +11,7 @@ namespace AuroraDuel.Managers;
 public static class TeleportManager
 {
     /// <summary>
-    /// Teleports a player to the specified spawn point and resets velocity
+    /// Teleports a player to the specified spawn point
     /// </summary>
     public static void TeleportPlayerToSpawn(CCSPlayerController player, Models.SpawnPoint spawn)
     {
@@ -23,7 +23,7 @@ public static class TeleportManager
 
         var pawn = player.PlayerPawn.Value;
         
-        // Teleport with zero velocity to prevent sliding
+        // Teleport with zero velocity
         pawn.Teleport(position, angles, zeroVelocity);
     }
 }

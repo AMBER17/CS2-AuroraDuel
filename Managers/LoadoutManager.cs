@@ -20,13 +20,6 @@ public class LoadoutManager
         // Normalize probabilities to ensure they sum to 100
         _scenarios = NormalizeProbabilities(scenarios);
         _cumulativeProbabilities = CalculateCumulativeProbabilities(_scenarios);
-        
-        // Debug: Log normalized probabilities
-        Console.WriteLine($"[AuroraDuel] LoadoutManager initialized with {_scenarios.Count} scenarios:");
-        for (int i = 0; i < _scenarios.Count; i++)
-        {
-            Console.WriteLine($"  - {_scenarios[i].Name}: {_scenarios[i].Probability}% (cumulative: {_cumulativeProbabilities[i]})");
-        }
     }
 
     /// <summary>
@@ -36,7 +29,6 @@ public class LoadoutManager
     {
         if (scenarios.Count == 0)
         {
-            Console.WriteLine("[AuroraDuel] Warning: No loadout scenarios provided, using defaults");
             return new List<LoadoutScenario>();
         }
 
@@ -51,12 +43,10 @@ public class LoadoutManager
             {
                 scenarios[i].Probability = equalProb + (i < remainder ? 1 : 0);
             }
-            Console.WriteLine("[AuroraDuel] All probabilities were 0, distributed equally");
         }
         else if (total != 100)
         {
             // Normalize to 100
-            Console.WriteLine($"[AuroraDuel] Normalizing probabilities from {total}% to 100%");
             int normalizedSum = 0;
             for (int i = 0; i < scenarios.Count - 1; i++)
             {
@@ -68,11 +58,10 @@ public class LoadoutManager
             scenarios[^1].Probability = 100 - normalizedSum;
         }
 
-        // Verify final sum
+        // Verify final sum and adjust if needed
         int finalSum = scenarios.Sum(s => s.Probability);
         if (finalSum != 100)
         {
-            Console.WriteLine($"[AuroraDuel] Warning: Probability sum is {finalSum}%, adjusting last scenario");
             int diff = 100 - finalSum;
             scenarios[^1].Probability += diff;
         }
@@ -111,16 +100,12 @@ public class LoadoutManager
         {
             if (randomValue <= _cumulativeProbabilities[i])
             {
-                var selected = _scenarios[i];
-                Console.WriteLine($"[AuroraDuel] Selected loadout scenario: {selected.Name} (random: {randomValue}, probability: {selected.Probability}%)");
-                return selected;
+                return _scenarios[i];
             }
         }
 
         // Fallback to last scenario (should not happen if probabilities are correct)
-        var fallback = _scenarios[^1];
-        Console.WriteLine($"[AuroraDuel] Fallback to last scenario: {fallback.Name} (random: {randomValue})");
-        return fallback;
+        return _scenarios[^1];
     }
 
     /// <summary>
@@ -143,20 +128,12 @@ public class LoadoutManager
         if (!string.IsNullOrWhiteSpace(primaryWeapon))
         {
             player.GiveNamedItem(primaryWeapon);
-            if (!silent)
-            {
-                Console.WriteLine($"[AuroraDuel] Applied primary weapon to {player.PlayerName}: {primaryWeapon}");
-            }
         }
 
         // Secondary weapon
         if (!string.IsNullOrWhiteSpace(scenario.SecondaryWeapon))
         {
             player.GiveNamedItem(scenario.SecondaryWeapon);
-            if (!silent)
-            {
-                Console.WriteLine($"[AuroraDuel] Applied secondary weapon to {player.PlayerName}: {scenario.SecondaryWeapon}");
-            }
         }
         else
         {
@@ -164,18 +141,10 @@ public class LoadoutManager
             if (player.Team == CsTeam.Terrorist)
             {
                 player.GiveNamedItem(CsItem.Glock);
-                if (!silent)
-                {
-                    Console.WriteLine($"[AuroraDuel] Applied default T pistol (Glock) to {player.PlayerName}");
-                }
             }
             else if (player.Team == CsTeam.CounterTerrorist)
             {
                 player.GiveNamedItem(CsItem.USP);
-                if (!silent)
-                {
-                    Console.WriteLine($"[AuroraDuel] Applied default CT pistol (USP) to {player.PlayerName}");
-                }
             }
         }
 

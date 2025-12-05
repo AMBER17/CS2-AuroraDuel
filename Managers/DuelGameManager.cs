@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 using AuroraDuel.Models;
 using AuroraDuel.Utils;
+using static AuroraDuel.Utils.MessageHelper;
 
 namespace AuroraDuel.Managers;
 
@@ -66,6 +67,9 @@ public class DuelGameManager
         {
             _isDuelInProgress = false;
             _isGameStarted = false;
+            _currentDuelCombo = null;
+            _currentDuelPlayers = null;
+            _currentDuelLoadout = null;
             Server.ExecuteCommand("sv_cheats 1");
             Server.ExecuteCommand("mp_restartgame 1");
             Server.PrintToChatAll($"{ChatColors.Green}{Localization.ConfigModeActive}");
@@ -151,7 +155,7 @@ public class DuelGameManager
                 _pluginInstance.AddTimer(1.0f, () =>
                 {
                     // Respawn all dead players in T/CT teams
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV && 
+                    foreach (var p in Utilities.GetPlayers().Where(p => IsValidPlayer(p) && 
                         (p.Team == CsTeam.Terrorist || p.Team == CsTeam.CounterTerrorist)))
                     {
                         if (!p.PawnIsAlive)
@@ -183,13 +187,16 @@ public class DuelGameManager
     private void CheckRemainingPlayers()
     {
         var playersInTeam = Utilities.GetPlayers()
-            .Count(p => p.IsValid && !p.IsBot && !p.IsHLTV && 
+            .Count(p => IsValidPlayer(p) && 
                    (p.Team == CsTeam.Terrorist || p.Team == CsTeam.CounterTerrorist));
 
         if (playersInTeam == 0)
         {
             _isGameStarted = false;
             _isDuelInProgress = false;
+            _currentDuelCombo = null;
+            _currentDuelPlayers = null;
+            _currentDuelLoadout = null;
         }
     }
 
@@ -201,7 +208,7 @@ public class DuelGameManager
         if (_isGameStarted || IsConfigModeActive) return;
 
         var playersInTeam = Utilities.GetPlayers()
-            .Where(p => p.IsValid && !p.IsBot && !p.IsHLTV && 
+            .Where(p => IsValidPlayer(p) && 
                    (p.Team == CsTeam.Terrorist || p.Team == CsTeam.CounterTerrorist))
             .ToList();
 
@@ -286,7 +293,7 @@ public class DuelGameManager
             string winnerTeam = aliveTerrorists == 0 ? "CT" : "T";
             
             string winMessage = Localization.DuelWinMessage.Replace("{winnerTeam}", winnerTeam);
-            foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV))
+            foreach (var player in Utilities.GetPlayers().Where(IsValidPlayer))
             {
                 player.PrintToCenter(winMessage);
             }
@@ -346,61 +353,59 @@ public class DuelGameManager
             return;
         }
 
-        var spawnIndices = RespawnAndTeleportPlayers(_currentDuelPlayers, _currentDuelCombo);
-        
-        _isDuelInProgress = true;
-        _isSettingUpDuel = false; // Clear flag after duel setup is complete
-        
-        // General chat message
-        string chatMessage = Localization.DuelStartChatMessage
-            .Replace("{comboName}", _currentDuelCombo.ComboName)
-            .Replace("{tCount}", tCount.ToString())
-            .Replace("{ctCount}", ctCount.ToString());
-        Server.PrintToChatAll(chatMessage);
-        
-        // Personalized center screen message for each player with their spawn index
-        foreach (var kvp in spawnIndices)
+        // RespawnAndTeleportPlayers is now async, so we pass a callback
+        RespawnAndTeleportPlayers(_currentDuelPlayers, _currentDuelCombo, (spawnIndices) =>
         {
-            var player = kvp.Key;
-            var spawnIndex = kvp.Value;
+            _isDuelInProgress = true;
+            _isSettingUpDuel = false; // Clear flag after duel setup is complete
             
-            if (player.IsValid && !player.IsBot && !player.IsHLTV)
+            // General chat message
+            string chatMessage = Localization.DuelStartChatMessage
+                .Replace("{comboName}", _currentDuelCombo.ComboName)
+                .Replace("{tCount}", tCount.ToString())
+                .Replace("{ctCount}", ctCount.ToString());
+            Server.PrintToChatAll(chatMessage);
+            
+            // Personalized center screen message for each player with their spawn index
+            foreach (var kvp in spawnIndices)
             {
-                string team = player.Team == CsTeam.Terrorist ? "T" : "CT";
-                string centerMessage = FormatCenterMessage(
-                    Localization.DuelStartMessageWithSpawn,
+                var player = kvp.Key;
+                var spawnIndex = kvp.Value;
+                
+                if (IsValidPlayer(player))
+                {
+                    string team = player.Team == CsTeam.Terrorist ? "T" : "CT";
+                    string centerMessage = FormatCenterMessage(
+                        Localization.DuelStartMessageWithSpawn,
+                        _currentDuelCombo.ComboName,
+                        team,
+                        spawnIndex,
+                        tCount,
+                        ctCount
+                    );
+                    player.PrintToCenter(centerMessage);
+                    
+                    string spawnMessage = player.Team == CsTeam.Terrorist
+                        ? string.Format(Localization.YouAreSpawnT, spawnIndex)
+                        : string.Format(Localization.YouAreSpawnCT, spawnIndex);
+                    player.PrintToChat($"{ChatColors.LightBlue}{spawnMessage}");
+                }
+            }
+            
+            // Center screen message for players not participating in the duel (spectators)
+            foreach (var player in Utilities.GetPlayers().Where(p => IsValidPlayer(p) && !spawnIndices.ContainsKey(p)))
+            {
+                string startMessage = FormatCenterMessage(
+                    Localization.DuelStartMessage,
                     _currentDuelCombo.ComboName,
-                    team,
-                    spawnIndex,
+                    null,
+                    null,
                     tCount,
                     ctCount
                 );
-                player.PrintToCenter(centerMessage);
-                
-                if (player.Team == CsTeam.Terrorist)
-                {
-                    player.PrintToChat($"{ChatColors.LightBlue}{string.Format(Localization.YouAreSpawnT, spawnIndex)}");
-                }
-                else
-                {
-                    player.PrintToChat($"{ChatColors.LightBlue}{string.Format(Localization.YouAreSpawnCT, spawnIndex)}");
-                }
+                player.PrintToCenter(startMessage);
             }
-        }
-        
-        // Center screen message for players not participating in the duel (spectators)
-        foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && !p.IsHLTV && !spawnIndices.ContainsKey(p)))
-        {
-            string startMessage = FormatCenterMessage(
-                Localization.DuelStartMessage,
-                _currentDuelCombo.ComboName,
-                null,
-                null,
-                tCount,
-                ctCount
-            );
-            player.PrintToCenter(startMessage);
-        }
+        });
     }
 
     /// <summary>
@@ -426,7 +431,7 @@ public class DuelGameManager
         return message;
     }
 
-    private Dictionary<CCSPlayerController, int> RespawnAndTeleportPlayers(List<CCSPlayerController> players, DuelCombination combo)
+    private void RespawnAndTeleportPlayers(List<CCSPlayerController> players, DuelCombination combo, Action<Dictionary<CCSPlayerController, int>> onComplete)
     {
         var spawnIndices = new Dictionary<CCSPlayerController, int>();
     
@@ -434,19 +439,68 @@ public class DuelGameManager
         var validTSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns).OrderBy(_ => _random.Next()).ToList();
         var validCTSpawns = SpawnHelper.GetValidSpawns(combo.CTSpawns).OrderBy(_ => _random.Next()).ToList();
 
-        var tPlayers = players.Where(p => p.Team == CsTeam.Terrorist).OrderBy(_ => _random.Next()).ToList();
-        var ctPlayers = players.Where(p => p.Team == CsTeam.CounterTerrorist).OrderBy(_ => _random.Next()).ToList();
+        // Store target team for each player before switching to spectator
+        var playerTargetTeams = new Dictionary<CCSPlayerController, CsTeam>();
+        foreach (var player in players)
+        {
+            if (IsValidPlayer(player))
+            {
+                playerTargetTeams[player] = player.Team;
+            }
+        }
 
-        // Process T players
-        ProcessTeamPlayers(tPlayers, validTSpawns, combo.TSpawns, spawnIndices);
-        
-        // Process CT players
-        ProcessTeamPlayers(ctPlayers, validCTSpawns, combo.CTSpawns, spawnIndices);
-            
-        // Teleport all players to their spawns
-        TeleportPlayersToSpawns(spawnIndices, combo);
-        
-        return spawnIndices;
+        // Step 1: Switch all players to spectator to completely reset their state
+        // This is especially important for players who survived the previous duel
+        foreach (var player in players)
+        {
+            if (IsValidPlayer(player) && player.Team != CsTeam.Spectator)
+            {
+                player.ChangeTeam(CsTeam.Spectator);
+            }
+        }
+
+        // Step 2: Wait a few frames for the spectator switch to process
+        Server.NextFrame(() =>
+        {
+            Server.NextFrame(() =>
+            {
+                // Step 3: Switch players back to their target teams
+                foreach (var kvp in playerTargetTeams)
+                {
+                    var player = kvp.Key;
+                    var targetTeam = kvp.Value;
+                    
+                    if (IsValidPlayer(player) && player.Team != targetTeam)
+                    {
+                        player.ChangeTeam(targetTeam);
+                    }
+                }
+
+                // Step 4: Wait for team changes to process, then respawn and assign spawns
+                Server.NextFrame(() =>
+                {
+                    Server.NextFrame(() =>
+                    {
+                        // Now process players with their spawns
+                        // Re-get players since teams have changed
+                        var updatedTPlayers = players.Where(p => IsValidPlayer(p) && p.Team == CsTeam.Terrorist).OrderBy(_ => _random.Next()).ToList();
+                        var updatedCTPlayers = players.Where(p => IsValidPlayer(p) && p.Team == CsTeam.CounterTerrorist).OrderBy(_ => _random.Next()).ToList();
+
+                        // Process T players
+                        ProcessTeamPlayers(updatedTPlayers, validTSpawns, combo.TSpawns, spawnIndices);
+                        
+                        // Process CT players
+                        ProcessTeamPlayers(updatedCTPlayers, validCTSpawns, combo.CTSpawns, spawnIndices);
+                            
+                        // Step 5: Teleport all players to their spawns
+                        TeleportPlayersToSpawns(spawnIndices, combo);
+                        
+                        // Step 6: Call the completion callback with spawn indices
+                        onComplete(spawnIndices);
+                    });
+                });
+            });
+        });
     }
 
     /// <summary>
@@ -470,7 +524,7 @@ public class DuelGameManager
                 player.Respawn();
                 Server.NextFrame(() =>
                 {
-                    if (player.IsValid && !player.IsBot && !player.IsHLTV)
+                    if (IsValidPlayer(player))
                     {
                         RestorePlayerHealth(player);
                         GiveDuelEquipment(player);
@@ -495,7 +549,7 @@ public class DuelGameManager
             var player = kvp.Key;
             var spawnIndex = kvp.Value;
             
-            if (!player.IsValid || player.IsBot || player.IsHLTV) continue;
+            if (!IsValidPlayer(player)) continue;
             
             Models.SpawnPoint? targetSpawn = null;
             var spawnsToSearch = player.Team == CsTeam.Terrorist ? combo.TSpawns : combo.CTSpawns;
@@ -506,18 +560,14 @@ public class DuelGameManager
                 targetSpawn = validSpawns[spawnIndex - 1];
             }
             
-            if (targetSpawn != null)
+
+            Server.NextFrame(() =>
             {
-                // Use NextFrame to ensure player is fully respawned before teleporting
-                // This prevents sliding issues
-                Server.NextFrame(() =>
+                if (IsValidPlayer(player) && player.PlayerPawn?.Value != null && player.PawnIsAlive && targetSpawn != null)
                 {
-                    if (player.IsValid && !player.IsBot && !player.IsHLTV && player.PlayerPawn?.Value != null)
-                    {
-                        TeleportManager.TeleportPlayerToSpawn(player, targetSpawn);
-                    }
-                });
-            }
+                    TeleportManager.TeleportPlayerToSpawn(player, targetSpawn);
+                }
+            });
         }
     }
 
@@ -585,24 +635,36 @@ public class DuelGameManager
             var currentTeam = player.Team;
             // ChangeTeam kills the player, then we respawn immediately
             player.ChangeTeam(currentTeam);
-            if (player.IsValid && !player.IsBot && !player.IsHLTV)
+            
+            // Wait a frame before respawning to ensure the team change is processed
+            Server.NextFrame(() =>
             {
-                player.Respawn();
-                if (player.IsValid && !player.IsBot && !player.IsHLTV)
+                if (IsValidPlayer(player))
                 {
-                    RestorePlayerHealth(player);
+                    player.Respawn();
+                    Server.NextFrame(() =>
+                    {
+                        if (IsValidPlayer(player))
+                        {
+                            RestorePlayerHealth(player);
+                            GiveDuelEquipment(player);
+                        }
+                    });
                 }
-            }
+            });
         }
-
-        GiveDuelEquipment(player);
+        else
+        {
+            GiveDuelEquipment(player);
+        }
     }
 
     /// <summary>
-    /// Removes all weapons on the ground (dropped weapons)
+    /// Removes all weapons on the ground (dropped weapons) and all grenades (in air or on ground)
     /// </summary>
     private void RemoveDroppedWeapons()
     {
+        // Remove dropped weapons
         var entities = Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("weapon_");
         foreach (var entity in entities)
         {
@@ -614,6 +676,38 @@ public class DuelGameManager
                 entity.Remove();
             }
         }
+
+        // Remove all grenade projectiles (in air)
+        var grenadeTypes = new[]
+        {
+            "flashbang_projectile",
+            "hegrenade_projectile",
+            "smokegrenade_projectile",
+            "molotov_projectile",
+            "incendiarygrenade_projectile"
+        };
+
+        foreach (var grenadeType in grenadeTypes)
+        {
+            var grenades = Utilities.FindAllEntitiesByDesignerName<CBaseEntity>(grenadeType);
+            foreach (var grenade in grenades)
+            {
+                if (grenade != null && grenade.IsValid)
+                {
+                    grenade.Remove();
+                }
+            }
+        }
+
+        // Remove smoke grenades on the ground (exploded smokes)
+        var smokes = Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("smokegrenade");
+        foreach (var smoke in smokes)
+        {
+            if (smoke != null && smoke.IsValid)
+            {
+                smoke.Remove();
+            }
+        }
     }
 
     /// <summary>
@@ -622,7 +716,7 @@ public class DuelGameManager
     private List<CCSPlayerController> GetDuelPlayers(DuelCombination combo)
     {
         var allPlayers = Utilities.GetPlayers()
-            .Where(p => p.IsValid && !p.IsHLTV)
+            .Where(p => p != null && p.IsValid && !p.IsHLTV)
             .ToList();
 
         var tSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns);

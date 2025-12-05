@@ -322,58 +322,43 @@ public class DuelCommands
         var validTSpawns = SpawnHelper.GetValidSpawns(combo.TSpawns);
         var validCTSpawns = SpawnHelper.GetValidSpawns(combo.CTSpawns);
 
-        if (player != null && player.IsValid)
+        var messages = new List<string>
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{string.Format(Localization.DuelInfoHeader, comboName)}");
-            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoMap, mapName)}");
-            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoTSpawns, validTSpawns.Count)}");
-            player.PrintToChat($" {ChatColors.Green}{string.Format(Localization.DuelInfoCTSpawns, validCTSpawns.Count)}");
-            
-            if (validTSpawns.Count > 0)
+            $" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{string.Format(Localization.DuelInfoHeader, comboName)}",
+            $" {ChatColors.Green}{string.Format(Localization.DuelInfoMap, mapName)}",
+            $" {ChatColors.Green}{string.Format(Localization.DuelInfoTSpawns, validTSpawns.Count)}",
+            $" {ChatColors.Green}{string.Format(Localization.DuelInfoCTSpawns, validCTSpawns.Count)}"
+        };
+
+        if (validTSpawns.Count > 0)
+        {
+            messages.Add($" {ChatColors.Red}{Localization.DuelInfoTSpawnsList}");
+            for (int i = 0; i < validTSpawns.Count; i++)
             {
-                player.PrintToChat($" {ChatColors.Red}{Localization.DuelInfoTSpawnsList}");
-                for (int i = 0; i < validTSpawns.Count; i++)
-                {
-                    var spawn = validTSpawns[i];
-                    player.PrintToChat($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
-                }
+                var spawn = validTSpawns[i];
+                messages.Add($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
             }
-            
-            if (validCTSpawns.Count > 0)
+        }
+
+        if (validCTSpawns.Count > 0)
+        {
+            messages.Add($" {ChatColors.LightBlue}{Localization.DuelInfoCTSpawnsList}");
+            for (int i = 0; i < validCTSpawns.Count; i++)
             {
-                player.PrintToChat($" {ChatColors.LightBlue}{Localization.DuelInfoCTSpawnsList}");
-                for (int i = 0; i < validCTSpawns.Count; i++)
-                {
-                    var spawn = validCTSpawns[i];
-                    player.PrintToChat($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
-                }
+                var spawn = validCTSpawns[i];
+                messages.Add($"   {ChatColors.Default}{string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ)}");
             }
+        }
+
+        if (MessageHelper.IsValidPlayer(player))
+        {
+            MessageHelper.SendMessages(player, info, messages);
         }
         else
         {
-            Console.WriteLine($"[AuroraDuel] {string.Format(Localization.DuelInfoHeader, comboName)}");
-            Console.WriteLine(string.Format(Localization.DuelInfoMap, mapName));
-            Console.WriteLine(string.Format(Localization.DuelInfoTSpawns, validTSpawns.Count));
-            Console.WriteLine(string.Format(Localization.DuelInfoCTSpawns, validCTSpawns.Count));
-            
-            if (validTSpawns.Count > 0)
+            foreach (var msg in messages)
             {
-                Console.WriteLine(Localization.DuelInfoTSpawnsList);
-                for (int i = 0; i < validTSpawns.Count; i++)
-                {
-                    var spawn = validTSpawns[i];
-                    Console.WriteLine(string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ));
-                }
-            }
-            
-            if (validCTSpawns.Count > 0)
-            {
-                Console.WriteLine(Localization.DuelInfoCTSpawnsList);
-                for (int i = 0; i < validCTSpawns.Count; i++)
-                {
-                    var spawn = validCTSpawns[i];
-                    Console.WriteLine(string.Format(Localization.DuelInfoSpawnPosition, i + 1, spawn.PosX, spawn.PosY, spawn.PosZ));
-                }
+                Console.WriteLine(MessageHelper.StripChatColors(msg));
             }
         }
     }
@@ -396,26 +381,35 @@ public class DuelCommands
             return;
         }
 
-        if (player != null && player.IsValid)
+        var messages = new List<string>
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}{ChatColors.Yellow}{string.Format(Localization.DuelListHeader, duelsOnMap.Count, currentMap)}");
+            $" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Default}{ChatColors.Yellow}{string.Format(Localization.DuelListHeader, duelsOnMap.Count, currentMap)}"
+        };
+
+        foreach (var duel in duelsOnMap)
+        {
+            int tSpawns = SpawnHelper.GetValidSpawns(duel.TSpawns).Count;
+            int ctSpawns = SpawnHelper.GetValidSpawns(duel.CTSpawns).Count;
             
-            foreach (var duel in duelsOnMap)
+            if (MessageHelper.IsValidPlayer(player))
             {
-                int tSpawns = SpawnHelper.GetValidSpawns(duel.TSpawns).Count;
-                int ctSpawns = SpawnHelper.GetValidSpawns(duel.CTSpawns).Count;
-                
-                player.PrintToChat($"  {ChatColors.Green}• {ChatColors.Yellow}{string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns)}");
+                messages.Add($"  {ChatColors.Green}• {ChatColors.Yellow}{string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns)}");
             }
+            else
+            {
+                messages.Add(string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns));
+            }
+        }
+
+        if (MessageHelper.IsValidPlayer(player))
+        {
+            MessageHelper.SendMessages(player, info, messages);
         }
         else
         {
-            foreach (var duel in duelsOnMap)
+            foreach (var msg in messages)
             {
-                int tSpawns = SpawnHelper.GetValidSpawns(duel.TSpawns).Count;
-                int ctSpawns = SpawnHelper.GetValidSpawns(duel.CTSpawns).Count;
-                
-                Console.WriteLine(string.Format(Localization.DuelListItem, duel.ComboName, tSpawns, ctSpawns));
+                Console.WriteLine(MessageHelper.StripChatColors(msg));
             }
         }
     }
@@ -455,47 +449,39 @@ public class DuelCommands
     [RequiresPermissions("@css/root")]
     public void Command_Help(CCSPlayerController? player, CommandInfo info)
     {
-        if (player != null && player.IsValid)
+        var messages = new List<string>
         {
-            player.PrintToChat($" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{Localization.HelpHeader}");
-            player.PrintToChat($" {ChatColors.Green}{Localization.HelpSpawnConfig}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpAddTSpawn, "!duel_add_t")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpAddCTSpawn, "!duel_add_ct")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpRemoveTSpawn, "!duel_remove_t_spawn")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpRemoveCTSpawn, "!duel_remove_ct_spawn")}");
-            player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Green}{Localization.HelpDuelManagement}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelList, "!duel_list")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelInfo, "!duel_info")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelDelete, "!duel_delete")}");
-            player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Green}{Localization.HelpOtherCommands}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelConfig, "!duel_config")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelMap, "!duel_map")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelReload, "!duel_reload")}");
-            player.PrintToChat($"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelHelp, "!duel_help")}");
-            player.PrintToChat($" ");
-            player.PrintToChat($" {ChatColors.Yellow}{string.Format(Localization.HelpNote, "@css/root")}");
+            $" {ChatColors.LightBlue}[AuroraDuel] {ChatColors.Yellow}{Localization.HelpHeader}",
+            $" {ChatColors.Green}{Localization.HelpSpawnConfig}",
+            $"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpAddTSpawn, "!duel_add_t")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpAddCTSpawn, "!duel_add_ct")}",
+            $"  {ChatColors.Default}• {ChatColors.Red}{string.Format(Localization.HelpRemoveTSpawn, "!duel_remove_t_spawn")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpRemoveCTSpawn, "!duel_remove_ct_spawn")}",
+            $" ",
+            $" {ChatColors.Green}{Localization.HelpDuelManagement}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelList, "!duel_list")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelInfo, "!duel_info")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelDelete, "!duel_delete")}",
+            $" ",
+            $" {ChatColors.Green}{Localization.HelpOtherCommands}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelConfig, "!duel_config")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelMap, "!duel_map")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelReload, "!duel_reload")}",
+            $"  {ChatColors.Default}• {ChatColors.LightBlue}{string.Format(Localization.HelpDuelHelp, "!duel_help")}",
+            $" ",
+            $" {ChatColors.Yellow}{string.Format(Localization.HelpNote, "@css/root")}"
+        };
+
+        if (MessageHelper.IsValidPlayer(player))
+        {
+            MessageHelper.SendMessages(player, info, messages);
         }
         else
         {
-            Console.WriteLine($"[AuroraDuel] {Localization.HelpHeader}");
-            Console.WriteLine(Localization.HelpSpawnConfig);
-            Console.WriteLine(string.Format(Localization.HelpAddTSpawn, "!duel_add_t"));
-            Console.WriteLine(string.Format(Localization.HelpAddCTSpawn, "!duel_add_ct"));
-            Console.WriteLine(string.Format(Localization.HelpRemoveTSpawn, "!duel_remove_t_spawn"));
-            Console.WriteLine(string.Format(Localization.HelpRemoveCTSpawn, "!duel_remove_ct_spawn"));
-            Console.WriteLine("");
-            Console.WriteLine(Localization.HelpDuelManagement);
-            Console.WriteLine(string.Format(Localization.HelpDuelList, "!duel_list"));
-            Console.WriteLine(string.Format(Localization.HelpDuelInfo, "!duel_info"));
-            Console.WriteLine(string.Format(Localization.HelpDuelDelete, "!duel_delete"));
-            Console.WriteLine("");
-            Console.WriteLine(Localization.HelpOtherCommands);
-            Console.WriteLine(string.Format(Localization.HelpDuelConfig, "!duel_config"));
-            Console.WriteLine(string.Format(Localization.HelpDuelMap, "!duel_map"));
-            Console.WriteLine(string.Format(Localization.HelpDuelReload, "!duel_reload"));
-            Console.WriteLine(string.Format(Localization.HelpDuelHelp, "!duel_help"));
+            foreach (var msg in messages)
+            {
+                Console.WriteLine(MessageHelper.StripChatColors(msg));
+            }
         }
     }
 }

@@ -26,41 +26,6 @@ public class PluginSettings
     public bool HideTeamChangeMessages { get; set; } = true;
 
     /// <summary>
-    /// Give kevlar vest to players
-    /// </summary>
-    public bool GiveKevlar { get; set; } = true;
-
-    /// <summary>
-    /// Give helmet to players
-    /// </summary>
-    public bool GiveHelmet { get; set; } = true;
-
-    /// <summary>
-    /// Give Deagle to players
-    /// </summary>
-    public bool GiveDeagle { get; set; } = true;
-
-    /// <summary>
-    /// Give HE grenade to players
-    /// </summary>
-    public bool GiveHEGrenade { get; set; } = true;
-
-    /// <summary>
-    /// Give flashbang to players
-    /// </summary>
-    public bool GiveFlashbang { get; set; } = true;
-
-    /// <summary>
-    /// Primary weapon for Terrorists (e.g., "weapon_ak47")
-    /// </summary>
-    public string TerroristPrimaryWeapon { get; set; } = "weapon_ak47";
-
-    /// <summary>
-    /// Primary weapon for Counter-Terrorists (e.g., "weapon_m4a1_silencer")
-    /// </summary>
-    public string CTerroristPrimaryWeapon { get; set; } = "weapon_m4a1_silencer";
-
-    /// <summary>
     /// Loadout scenarios with probabilities (sum should be 100)
     /// </summary>
     public List<LoadoutScenario> LoadoutScenarios { get; set; } = new List<LoadoutScenario>
